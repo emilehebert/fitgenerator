@@ -4,6 +4,12 @@
    Les éléments de la page vont hérités des propriétés inscrite dans body
    ========================================================================== */
 
+// Empêche le zoom par double-tap quand on clique vite plusieurs fois (ex: bouton aléatoire).
+// Le zoom à deux doigts reste permis pour l'accessibilité.
+html {
+    touch-action: manipulation;
+}
+
 body {
     margin: 0;
     background-color: var(--color-bg);
