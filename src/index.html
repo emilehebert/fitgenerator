@@ -5,7 +5,13 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Fit Generator</title>
         <meta name="description" content="Mix and match shirts, pants and shoes to generate a random outfit." />
-        <link rel="icon" href="assets/images/hanger.svg" />
+        <meta name="theme-color" content="#ffffff" />
+        <link rel="icon" href="assets/images/hanger.svg" type="image/svg+xml" />
+
+        <!-- Montserrat ne sert qu'au texte du dialog: chargée sans bloquer l'affichage -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" media="print" onload="this.media='all'" />
 
         <link rel="stylesheet" href="styles/main.css" />
 
@@ -13,10 +19,13 @@
     </head>
 
     {% set categories = [
-        { name: 'shirts', label: 'shirt', empty: 'shirts/ShirtsDefault.png' },
-        { name: 'pants', label: 'pants', empty: 'pants/PantsDefault.png' },
-        { name: 'shoes', label: 'shoes', empty: 'shoes/ShoesDefault.png' }
+        { name: 'shirts', label: 'shirt', height: 1000 },
+        { name: 'pants', label: 'pants', height: 1000 },
+        { name: 'shoes', label: 'shoes', height: 500 }
     ] %}
+
+    {# Les images sont choisies au hasard par Clothes.js: pas de src ici pour éviter un téléchargement inutile #}
+    {% set sizes = '(max-width: 733px) 60vw, 440px' %}
 
     {% macro button(icon, action, label, modifier) %}
         <button type="button" class="button {{ modifier }} {{ action }}" aria-label="{{ label }}">
@@ -32,7 +41,7 @@
             <div class="clothes">
                 <div class="card card--heads prevent-select" data-category="heads">
                     <div class="card__media">
-                        <img class="js-image" src="assets/images/clothes/heads/0.png" alt="Head" />
+                        <img class="js-image" alt="" width="1000" height="1000" sizes="{{ sizes }}" fetchpriority="high" />
                     </div>
                 </div>
 
@@ -49,7 +58,7 @@
                             </div>
                         </div>
                         <div class="card__media">
-                            <img class="js-image" src="assets/images/clothes/{{ category.empty }}" alt="" />
+                            <img class="js-image" alt="" width="1000" height="{{ category.height }}" sizes="{{ sizes }}" fetchpriority="high" />
                         </div>
                     </div>
                 {% endfor %}

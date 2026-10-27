@@ -11,19 +11,19 @@ const CATEGORIES = {
   },
   shirts: {
     variants: [
-      { name: 'shirts', label: 'Shirts', count: 30, empty: 'ShirtsDefault.png' },
-      { name: 'crewnecks', label: 'Crewnecks', count: 7, empty: 'CrewneckDefault.png' },
+      { name: 'shirts', label: 'Shirts', count: 30, empty: 'ShirtsDefault' },
+      { name: 'crewnecks', label: 'Crewnecks', count: 7, empty: 'CrewneckDefault' },
     ],
   },
   pants: {
     variants: [
-      { name: 'pants', label: 'Pants', count: 10, empty: 'PantsDefault.png' },
-      { name: 'shorts', label: 'Shorts', count: 8, empty: 'ShortsDefault.png' },
+      { name: 'pants', label: 'Pants', count: 10, empty: 'PantsDefault' },
+      { name: 'shorts', label: 'Shorts', count: 8, empty: 'ShortsDefault' },
     ],
   },
   shoes: {
     variants: [
-      { name: 'shoes', label: 'Shoes', count: 3, empty: 'ShoesDefault.png', thumbs: 'shoes/sides' },
+      { name: 'shoes', label: 'Shoes', count: 3, empty: 'ShoesDefault', thumbs: 'shoes/sides' },
     ],
   },
 };
@@ -126,9 +126,11 @@ export default class Clothes {
     const state = this.state[category];
     const variant = this.variantOf(category);
     const isEmpty = state.index === null;
-    const file = isEmpty ? variant.empty : `${state.index}.png`;
+    const file = `${IMAGE_PATH}/${variant.name}/${isEmpty ? variant.empty : state.index}`;
 
-    state.image.src = `${IMAGE_PATH}/${variant.name}/${file}`;
+    // Deux tailles par image: le navigateur choisit selon `sizes` (voir index.html) et la densité d'écran
+    state.image.srcset = `${file}-sm.webp 500w, ${file}.webp 1000w`;
+    state.image.src = `${file}.webp`;
     state.image.alt = isEmpty ? `No ${variant.label.toLowerCase()}` : `${variant.label} ${state.index + 1}`;
   }
 
@@ -315,7 +317,7 @@ export default class Clothes {
 
     for (let i = 0; i < variant.count; i++) {
       const button = this.createPickerItem(i, i === this.state[category].index);
-      button.innerHTML = `<img src="${IMAGE_PATH}/${folder}/${i}.png" alt="${variant.label} ${i + 1}" loading="lazy" />`;
+      button.innerHTML = `<img src="${IMAGE_PATH}/${folder}/${i}-sm.webp" alt="${variant.label} ${i + 1}" width="500" height="${variant.thumbs ? 250 : 500}" loading="lazy" />`;
       this.pickerGrid.appendChild(button);
     }
   }
@@ -338,8 +340,8 @@ export default class Clothes {
       const button = this.createPickerItem(i, i === current);
       const images = Object.keys(CATEGORIES).map((category) => {
         const variant = CATEGORIES[category].variants[outfit[category].variant];
-        const file = outfit[category].index === null ? variant.empty : `${outfit[category].index}.png`;
-        return `<img class="outfit__${category}" src="${IMAGE_PATH}/${variant.name}/${file}" alt="" loading="lazy" />`;
+        const file = outfit[category].index === null ? variant.empty : outfit[category].index;
+        return `<img class="outfit__${category}" src="${IMAGE_PATH}/${variant.name}/${file}-sm.webp" alt="" loading="lazy" />`;
       });
 
       button.setAttribute('aria-label', `Saved outfit ${i + 1}`);

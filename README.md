@@ -23,4 +23,4 @@ npm run build   # production build in dist/
 
 - `src/scripts/components/Clothes.js`: the outfit logic. The clothing categories and their variants are defined in `CATEGORIES`.
 - `src/styles/`: SCSS organized as settings, tools, generic, elements and components
-- `src/assets/images/clothes/`: one folder per category, with images numbered `0.png`, `1.png`, …
+- `src/assets/images/clothes/`: one folder per category, with images numbered `0.webp`, `1.webp`, … Each image also has a half-size `-sm.webp` copy (e.g. `0-sm.webp`) that the browser uses on small screens and in the picker.

@@ -29,6 +29,8 @@ export function scss() {
         includePaths: ['node_modules'],
         silenceDeprecations: ['import'],
         sassOptions: { quietDeps: true },
+        // `style` pour l'API moderne de Sass (gulp-sass 6), `outputStyle` pour l'ancienne
+        style: isProd ? 'compressed' : 'expanded',
         outputStyle: isProd ? 'compressed' : 'expanded',
       }).on('error', sass.logError)
     )
