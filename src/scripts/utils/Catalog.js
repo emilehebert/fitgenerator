@@ -20,6 +20,7 @@ const TIMEOUT = 4000;
 // `base` donne `${base}.webp` (1000 px) et `${base}-sm.webp` (500 px).
 export const cloudItem = (row) => ({
   id: row.id,
+  category: row.category,
   base: `${STORAGE_URL}/${row.category}/${row.id}`,
   thumb: row.has_thumb ? `${STORAGE_URL}/${row.category}/${row.id}-thumb.webp` : null,
 });
@@ -31,6 +32,7 @@ const localItems = (variant) => {
   for (let i = 0; i < (variant.count || 0); i++) {
     items.push({
       id: `${variant.name}-${i}`,
+      category: variant.name,
       base: `${LOCAL_PATH}/${variant.name}/${i}`,
       thumb: variant.thumbs ? `${LOCAL_PATH}/${variant.thumbs}/${i}-sm.webp` : null,
     });
@@ -76,6 +78,26 @@ const withPending = (rows) => {
   const known = new Set(rows.map((row) => row.id));
   return rows.concat(readPendingRows().filter((row) => !known.has(row.id)));
 };
+
+// Vêtement supprimé: retiré de la liste gardée, de l'attente et du cache d'images
+export async function forgetRow(row) {
+  saveRows(readSavedRows().filter((saved) => saved.id !== row.id));
+  writePendingRows(readPendingRows().filter((pending) => pending.id !== row.id));
+
+  if ('caches' in window) {
+    const cache = await caches.open(IMAGE_CACHE);
+    for (const suffix of ['', '-sm', '-thumb']) await cache.delete(`${STORAGE_URL}/${row.category}/${row.id}${suffix}.webp`);
+  }
+}
+
+// Vrai si une session Supabase est gardée sur l'appareil (lecture rapide, sans charger Supabase)
+export function hasSession() {
+  try {
+    return Object.keys(localStorage).some((key) => /^sb-.*-auth-token$/.test(key));
+  } catch (error) {
+    return false;
+  }
+}
 
 function readSavedRows() {
   try {

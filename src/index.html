@@ -81,6 +81,10 @@
                         <input type="checkbox" class="js-picker-toggle" />
                         <span class="js-picker-variant-label"></span>
                     </label>
+                    {# Mode suppression: visible seulement quand le propriétaire est connecté #}
+                    <button type="button" class="button js-picker-edit" aria-pressed="false" aria-label="Delete clothes" hidden>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-delete"></use></svg>
+                    </button>
                     {{ ui.button('close', 'js-picker-close', 'Close') }}
                 </div>
                 <div class="picker__tabs js-picker-tabs" hidden></div>

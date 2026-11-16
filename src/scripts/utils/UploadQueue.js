@@ -2,7 +2,7 @@
 // et envoyés dans Supabase dès qu'il y a Internet et une session.
 // En attendant, leurs images sont déjà dans le cache: ils s'affichent partout sur l'appareil.
 
-import { STORAGE_URL, IMAGE_CACHE, readPendingRows, writePendingRows } from './Catalog.js';
+import { STORAGE_URL, IMAGE_CACHE, readPendingRows, writePendingRows, forgetRow } from './Catalog.js';
 import { supabase, currentSession } from './Supabase.js';
 
 const DB_NAME = 'fitgen';
@@ -41,6 +41,27 @@ export async function enqueue(row, files) {
   await run('readwrite', (store) => store.put({ ...row, files }));
   writePendingRows([...readPendingRows().filter((pending) => pending.id !== row.id), row]);
   return flush();
+}
+
+// Supprime un vêtement pour de bon: fichiers et ligne dans Supabase, puis copie sur l'appareil.
+// Un vêtement encore en attente d'envoi est seulement retiré de la file.
+export async function remove(row) {
+  const queued = await run('readonly', (store) => store.get(row.id));
+
+  if (!queued) {
+    // La ligne d'abord: si les droits manquent, rien n'est touché
+    const { data, error } = await supabase().from('clothes').delete().eq('id', row.id).select('id');
+    if (error) throw error;
+    if (!data.length) throw new Error('Not allowed to delete this piece');
+
+    const files = ['', '-sm', '-master', '-thumb'].map((suffix) => `${row.category}/${row.id}${suffix}.webp`);
+    const { error: storageError } = await supabase().storage.from('clothes').remove(files);
+    if (storageError) console.warn('Fichiers du vêtement', storageError);
+  } else {
+    await run('readwrite', (store) => store.delete(row.id));
+  }
+
+  await forgetRow(row);
 }
 
 let flushing = null;

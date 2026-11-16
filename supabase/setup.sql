@@ -85,6 +85,11 @@ on conflict (id) do update set
     file_size_limit = excluded.file_size_limit,
     allowed_mime_types = excluded.allowed_mime_types;
 
+-- Supabase demande aussi le droit de lecture pour remplacer (upsert) ou supprimer un fichier
+drop policy if exists "clothes_files_select" on storage.objects;
+create policy "clothes_files_select" on storage.objects
+    for select to authenticated using (bucket_id = 'clothes' and public.is_admin());
+
 drop policy if exists "clothes_files_insert" on storage.objects;
 create policy "clothes_files_insert" on storage.objects
     for insert to authenticated with check (bucket_id = 'clothes' and public.is_admin());

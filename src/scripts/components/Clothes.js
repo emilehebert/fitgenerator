@@ -1,4 +1,4 @@
-import { loadCatalog, cloudItem, readPendingRows } from '../utils/Catalog.js';
+import { loadCatalog, cloudItem, readPendingRows, hasSession } from '../utils/Catalog.js';
 import { FRAMES } from '../utils/ImagePipeline.js';
 
 // L'ajout de vêtements (Supabase, détourage, WebP) est chargé seulement quand on en a besoin:
@@ -76,6 +76,7 @@ export default class Clothes {
     this.pickerToggle = element.querySelector('.js-picker-toggle');
     this.pickerVariantLabel = element.querySelector('.js-picker-variant-label');
     this.pickerTabs = element.querySelector('.js-picker-tabs');
+    this.pickerEdit = element.querySelector('.js-picker-edit');
     this.shuffleButton = element.querySelector('.js-shuffle-all');
     this.favoriteButton = element.querySelector('.js-favorite');
     this.undoButton = element.querySelector('.js-undo');
@@ -83,6 +84,9 @@ export default class Clothes {
 
     // `pickerCategory` = catégorie ouverte dans le dialog, ou null pour les favoris
     this.pickerCategory = null;
+    // Mode suppression du picker, et pièce qui attend la confirmation (deuxième toucher)
+    this.editing = false;
+    this.confirmDelete = null;
     this.state = {};
     this.history = [];
     this.historyIndex = -1;
@@ -206,6 +210,11 @@ export default class Clothes {
     if (target.closest('.js-open-favorites')) return this.openPicker(null);
     if (target.closest('.js-favorite-remove')) return this.removeFavorite(Number(target.closest('.js-favorite-remove').dataset.index));
     if (target.closest('.js-add')) return this.openUploader();
+    if (target.closest('.js-picker-edit')) return this.toggleEditing();
+    if (this.editing && this.pickerCategory && target.closest('.js-picker-item')) {
+      const index = parseInt(target.closest('.js-picker-item').dataset.index, 10);
+      if (index >= 0) return this.requestDelete(index);
+    }
     if (target.closest('.js-picker-tab')) return this.switchTab(target.closest('.js-picker-tab').dataset.tab);
 
     if (target.closest('.js-shuffle-all')) {
@@ -483,6 +492,8 @@ export default class Clothes {
   closePicker() {
     this.picker.close();
     this.pickerCategory = null;
+    this.editing = false;
+    this.confirmDelete = null;
   }
 
   renderPicker() {
@@ -494,8 +505,12 @@ export default class Clothes {
     const height = layer ? CATEGORIES[category].height / 2 : variant.thumbs ? 250 : 500;
     const wide = variant.thumbs || (layer && height < 500);
 
-    this.pickerTitle.textContent = `Your ${variant.label.toLowerCase()}`;
+    this.pickerTitle.textContent = this.editing ? 'Tap a piece to delete it' : `Your ${variant.label.toLowerCase()}`;
     this.renderTabs(category);
+
+    // Bouton poubelle: seulement pour le propriétaire connecté (Supabase vérifie aussi à la suppression)
+    this.pickerEdit.hidden = !hasSession();
+    this.pickerEdit.setAttribute('aria-pressed', this.editing);
 
     // La case à cocher ne sert que pour les catégories à deux variantes
     this.pickerVariant.hidden = variants.length < 2;
@@ -504,7 +519,7 @@ export default class Clothes {
       this.pickerToggle.checked = this.state[category].variant === 1;
     }
 
-    this.pickerGrid.className = `picker__grid js-picker-grid${wide ? ' picker__grid--wide' : ''}`;
+    this.pickerGrid.className = `picker__grid js-picker-grid${wide ? ' picker__grid--wide' : ''}${this.editing ? ' is-editing' : ''}`;
     this.pickerGrid.innerHTML = '';
 
     // Première case, coupée en deux pour prendre peu de place:
@@ -512,7 +527,7 @@ export default class Clothes {
     // La tête n'a ni image vide ni cadre de photo: elle n'a pas cette case.
     const canRemove = layer || Boolean(variant.empty);
     const canAdd = sourcesOf(variant).every((source) => FRAMES[source.name]);
-    if (canRemove || canAdd) {
+    if ((canRemove || canAdd) && !this.editing) {
       const actions = document.createElement('div');
       actions.className = 'picker__actions';
 
@@ -538,6 +553,10 @@ export default class Clothes {
       const button = this.createPickerItem(i, i === this.state[category].index);
       const src = items[i].thumb || `${items[i].base}-sm.webp`;
       button.innerHTML = `<img src="${src}" alt="${variant.label} ${i + 1}" width="500" height="${height}" loading="lazy" />`;
+      if (this.confirmDelete === items[i].id) {
+        button.classList.add('is-confirming');
+        button.insertAdjacentHTML('beforeend', '<span class="picker__confirm">Tap again to delete</span>');
+      }
       this.pickerGrid.appendChild(button);
     }
   }
@@ -653,6 +672,59 @@ export default class Clothes {
       if (!state || !sourcesOf(this.variantOf(category)).some((source) => source.name === row.category)) continue;
 
       state.index = this.itemsOf(category).findIndex((item) => item.id === row.id);
+      this.render(category);
+    }
+    this.commit();
+  }
+
+  /* Suppression d'un vêtement: poubelle du picker, puis deux touchers sur la pièce
+     ========================================================================== */
+
+  toggleEditing() {
+    this.editing = !this.editing;
+    this.confirmDelete = null;
+    this.renderPicker();
+  }
+
+  async requestDelete(index) {
+    const category = this.pickerCategory;
+    const item = this.itemsOf(category)[index];
+    if (!item) return;
+
+    // Premier toucher: on demande de confirmer (supprimer est définitif)
+    if (this.confirmDelete !== item.id) {
+      this.confirmDelete = item.id;
+      return this.renderPicker();
+    }
+
+    this.confirmDelete = null;
+    this.pickerTitle.textContent = 'Deleting…';
+    try {
+      const { remove } = await import('../utils/UploadQueue.js');
+      await remove({ id: item.id, category: item.category });
+      this.removeItem(item);
+      this.renderPicker();
+    } catch (error) {
+      console.warn('Suppression', error);
+      this.renderPicker();
+      this.pickerTitle.textContent = navigator.onLine ? 'Could not delete this piece' : 'You are offline, try again later';
+    }
+  }
+
+  // Retire le vêtement de la liste et corrige les pièces portées qui pointaient après lui
+  removeItem(item) {
+    const positions = {};
+    for (const category in this.state) {
+      const state = this.state[category];
+      positions[category] = state.index === null ? null : this.itemsOf(category)[state.index];
+    }
+
+    this.catalog[item.category] = (this.catalog[item.category] || []).filter((entry) => entry.id !== item.id);
+
+    for (const category in this.state) {
+      const worn = positions[category];
+      const index = worn ? this.itemsOf(category).findIndex((entry) => entry.id === worn.id) : -1;
+      this.state[category].index = index === -1 ? null : index;
       this.render(category);
     }
     this.commit();

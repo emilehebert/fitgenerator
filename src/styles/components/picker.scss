@@ -137,6 +137,49 @@
     }
 }
 
+// Mode suppression: chaque pièce montre une petite poubelle, la pièce à confirmer devient rouge
+.picker__grid.is-editing .picker__item {
+    position: relative;
+
+    &::after {
+        content: '';
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--color-bg) url('../assets/images/trash.svg') center / 16px no-repeat;
+        box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+    }
+}
+
+.picker__item.is-confirming {
+    border-color: #d33;
+
+    &::after {
+        display: none;
+    }
+}
+
+.picker__confirm {
+    position: absolute;
+    inset: auto 6px 6px;
+    border-radius: 999px;
+    padding: 0.35em 0.6em;
+    background-color: #d33;
+    color: #fff;
+    font-family: var(--font-primary);
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+}
+
+.js-picker-edit[aria-pressed='true'] {
+    background-color: var(--color-text);
+    color: var(--color-bg);
+}
+
 // Première case de la grille, coupée en deux: X (aucun) en haut, + (ajouter) en bas
 .picker__actions {
     display: flex;
