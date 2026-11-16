@@ -192,7 +192,7 @@
 }
 
 // Mini personnage dans la liste des tenues sauvegardées (mêmes chevauchements que clothes.scss).
-// Plus étroit que la carte pour laisser la place au manteau décalé à droite.
+// Plus étroit que la carte pour laisser la place au layer décalé à droite.
 .outfit {
     display: flex;
     flex-direction: column;
@@ -200,7 +200,7 @@
     width: 72%;
     margin-inline: auto;
 
-    &--coat {
+    &--layer {
         margin-left: 4%;
     }
 
@@ -234,7 +234,7 @@
 
         img { z-index: 4; }
 
-        .outfit__coats {
+        .outfit__layers {
             z-index: 3;
             transform: translate(var(--coat-x), var(--coat-y));
         }

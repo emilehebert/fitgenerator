@@ -98,8 +98,8 @@
 
     img { z-index: 4; }
 
-    // Manteau décalé en haut à droite, derrière le chandail (style collage)
-    .card__layer--coats {
+    // Layer (manteau, crewneck) décalé en haut à droite, derrière le chandail (style collage)
+    .card__layer--layers {
         z-index: 3;
         transform: translate(var(--coat-x), var(--coat-y));
     }

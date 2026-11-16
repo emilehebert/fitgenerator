@@ -4,19 +4,17 @@ const IMAGE_PATH = 'assets/images/clothes';
 const FAVORITES_KEY = 'fitgen-favorites';
 const HISTORY_LIMIT = 50;
 
-// Chaque catégorie a une ou plusieurs variantes (ex: chandails ou crewnecks).
+// Chaque catégorie a une ou plusieurs variantes (ex: pantalons ou shorts).
 // La liste des vêtements vient de Supabase (voir utils/Catalog.js).
 // `count` = images de secours 0..count-1 dans le dossier local, si le cloud ne répond pas.
 // `empty` = image affichée quand la catégorie est vide.
+// `sources` = une variante qui mélange plusieurs dossiers du cloud (ex: Layers = coats + crewnecks).
 const CATEGORIES = {
   heads: {
     variants: [{ name: 'heads', label: 'Heads', count: 17 }],
   },
   shirts: {
-    variants: [
-      { name: 'shirts', label: 'Shirts', count: 30, empty: 'ShirtsDefault' },
-      { name: 'crewnecks', label: 'Crewnecks', count: 7, empty: 'CrewneckDefault' },
-    ],
+    variants: [{ name: 'shirts', label: 'Shirts', count: 30, empty: 'ShirtsDefault' }],
   },
   pants: {
     variants: [
@@ -33,10 +31,19 @@ const CATEGORIES = {
 
   // Layers: posés par-dessus la carte `on`, invisibles quand vides.
   // `height` = hauteur de l'image pour une largeur de 1000.
-  coats: {
+  layers: {
     on: 'shirts',
     height: 1000,
-    variants: [{ name: 'coats', label: 'Coats', count: 1 }],
+    variants: [
+      {
+        name: 'layers',
+        label: 'Layers',
+        sources: [
+          { name: 'coats', count: 1 },
+          { name: 'crewnecks', count: 7 },
+        ],
+      },
+    ],
   },
   belts: {
     on: 'pants',
@@ -46,6 +53,9 @@ const CATEGORIES = {
 };
 
 const isLayer = (category) => Boolean(CATEGORIES[category].on);
+
+// Dossiers du cloud lus par une variante (elle-même, ou ses `sources`)
+const sourcesOf = (variant) => variant.sources || [variant];
 
 export default class Clothes {
   constructor(element) {
@@ -68,7 +78,7 @@ export default class Clothes {
     this.history = [];
     this.historyIndex = -1;
     this.favorites = this.loadFavorites();
-    // { [nom de variante]: [{ id, base, thumb }] }, rempli par loadCatalog
+    // { [dossier du cloud]: [{ id, base, thumb }] }, rempli par loadCatalog
     this.catalog = {};
 
     this.init();
@@ -91,8 +101,10 @@ export default class Clothes {
 
     this.createLayers();
 
-    const variants = Object.values(CATEGORIES).flatMap((category) => category.variants);
-    this.catalog = await loadCatalog(variants);
+    const sources = Object.values(CATEGORIES)
+      .flatMap((category) => category.variants)
+      .flatMap(sourcesOf);
+    this.catalog = await loadCatalog(sources);
 
     this.element.addEventListener('click', this.onClick.bind(this));
     this.pickerToggle.addEventListener('change', this.onVariantChange.bind(this));
@@ -171,7 +183,11 @@ export default class Clothes {
   }
 
   itemsOf(category) {
-    return this.catalog[this.variantOf(category).name] || [];
+    return this.itemsOfVariant(this.variantOf(category));
+  }
+
+  itemsOfVariant(variant) {
+    return sourcesOf(variant).flatMap((source) => this.catalog[source.name] || []);
   }
 
   // Retourne false (et fait trembler le cadenas) si la catégorie est barrée
@@ -282,14 +298,31 @@ export default class Clothes {
   // Même forme pour toutes les tenues. Les vieux favoris n'ont pas de layers
   // et gardent un `index`: il devient l'id migré (ex: shirts-3).
   normalize(outfit) {
+    outfit = { ...outfit };
+
+    // Avant: un layer `coats`, et les crewnecks étaient une variante des chandails.
+    // Maintenant les deux sont dans `layers`.
+    if (outfit.coats && !outfit.layers) outfit.layers = outfit.coats;
+    const shirt = outfit.shirts;
+    if (shirt && shirt.variant === 1) {
+      const id = shirt.id !== undefined ? shirt.id : typeof shirt.index === 'number' ? `crewnecks-${shirt.index}` : null;
+      if (id !== null) outfit.layers = { variant: 0, id };
+      outfit.shirts = { variant: 0, id: null };
+    }
+
     const result = {};
     for (const category in CATEGORIES) {
       const piece = outfit[category] || {};
-      const variant = piece.variant || 0;
+      // Une variante qui n'existe plus (ex: crewnecks) revient à la première
+      const variant = CATEGORIES[category].variants[piece.variant] ? piece.variant || 0 : 0;
       let id = null;
 
       if (piece.id !== undefined) id = piece.id;
-      else if (typeof piece.index === 'number') id = `${CATEGORIES[category].variants[variant].name}-${piece.index}`;
+      else if (typeof piece.index === 'number') {
+        // Vieux layer `coats`: son index pointe dans le premier dossier (coats)
+        const source = sourcesOf(CATEGORIES[category].variants[variant] || CATEGORIES[category].variants[0])[0];
+        id = `${source.name}-${piece.index}`;
+      }
 
       result[category] = { variant, id };
     }
@@ -481,7 +514,7 @@ export default class Clothes {
       const image = (category, className) => {
         const piece = outfit[category];
         const variant = CATEGORIES[category].variants[piece.variant];
-        const item = (this.catalog[variant.name] || []).find((entry) => entry.id === piece.id);
+        const item = this.itemsOfVariant(variant).find((entry) => entry.id === piece.id);
         // Vêtement supprimé depuis: image vide de la catégorie (rien pour un layer)
         if (!item && !variant.empty) return '';
         const src = item ? `${item.base}-sm.webp` : `${IMAGE_PATH}/${variant.name}/${variant.empty}-sm.webp`;
@@ -500,9 +533,9 @@ export default class Clothes {
           return `<span class="outfit__piece outfit__${category}">${image(category, '')}${layers.join('')}</span>`;
         });
 
-      const wearsCoat = outfit.coats && outfit.coats.id !== null;
+      const wearsLayer = outfit.layers.id !== null;
       button.setAttribute('aria-label', `Saved outfit ${i + 1}`);
-      button.innerHTML = `<span class="outfit${wearsCoat ? ' outfit--coat' : ''}">${pieces.join('')}</span>`;
+      button.innerHTML = `<span class="outfit${wearsLayer ? ' outfit--layer' : ''}">${pieces.join('')}</span>`;
 
       // Le bouton supprimer est à côté de la carte (pas dedans: un bouton ne peut pas en contenir un autre)
       const wrapper = document.createElement('div');
