@@ -39,11 +39,11 @@
     width: 100%;
 
     .card__content {
-        z-index: 5;
+        z-index: 10;
         position: absolute;
         display: flex;
         flex-direction: row;
-        justify-content: space-between;
+        justify-content: flex-start;
         width: 150%;
         pointer-events: none;
     }
@@ -62,35 +62,61 @@
     width: 100%;
 
     img {
+        position: relative;
         display: block;
         width: 100%;
         height: auto;
         cursor: pointer;
     }
+
+    // Layer posé en haut de l'image de sa carte (peut dépasser en bas, ex: manteau)
+    .card__layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+
+        &[hidden] {
+            display: none;
+        }
+    }
 }
 
-// Superposition des couches: chaque morceau chevauche celui du dessous
+// Superposition des couches: le z-index est sur les images (pas les cartes)
+// pour qu'un layer puisse passer par-dessus une autre carte.
+// Ordre: souliers 1, pantalon 2, manteau 3, chandail 4, ceinture 5, tête 6
 .card--heads {
-    z-index: 4;
     width: 70%;
     // Les images de tête ont au moins 25% de vide en haut: on le rogne pour centrer le personnage
     margin-top: -17%;
+
+    img { z-index: 6; }
 }
 
 .card--shirts {
     margin-top: -26%;
-    z-index: 3;
+
+    img { z-index: 4; }
+
+    // Manteau décalé en haut à droite, derrière le chandail (style collage)
+    .card__layer--coats {
+        z-index: 3;
+        transform: translate(var(--coat-x), var(--coat-y));
+    }
 }
 
 .card--pants {
     margin-top: -26%;
-    z-index: 2;
+
+    img { z-index: 2; }
+    .card__layer--belts { z-index: 5; }
 }
 
 .card--shoes {
     margin-top: -10%;
     width: 90%;
-    z-index: 1;
+
+    img { z-index: 1; }
 
     // Garde les boutons alignés avec ceux du dessus malgré la largeur de 90%
     .card__content {

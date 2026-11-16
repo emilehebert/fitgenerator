@@ -24,6 +24,11 @@ export const paths = {
     watch: 'src/**/*.{twig,html}',
     dest: 'dist/',
   },
+  // Fichiers copiés tels quels à la racine du site (service worker)
+  root: {
+    src: 'src/sw.js',
+    dest: 'dist/',
+  },
   assets: {
     src: 'src/assets/**/*',
     icons: 'src/assets/icons/**/*.svg',

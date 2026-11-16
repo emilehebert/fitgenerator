@@ -17,3 +17,5 @@ npm-debug.log
 [Dd]esktop.ini
 Thumbs.db
 scripts/tmp
+# Clés secrètes (Supabase)
+.env.local

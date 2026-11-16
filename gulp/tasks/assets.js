@@ -13,6 +13,10 @@ import errorHandler from '../util/errorHandler.js';
 import { paths } from '../config.js';
 
 // Task
+export function root() {
+  return src(paths.root.src).pipe(dest(paths.root.dest));
+}
+
 export function assets() {
   return src(paths.assets.src, { encoding: false })
     .pipe(plumber({ errorHandler }))

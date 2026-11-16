@@ -1,0 +1,19 @@
+name: Keep Supabase awake
+
+# Le plan gratuit de Supabase met le projet en pause après 7 jours sans requête.
+# Une petite lecture deux fois par semaine le garde actif.
+on:
+  schedule:
+    - cron: '0 12 * * 1,4'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      # Clé "publishable": publique par nature, déjà dans le code du site
+      - run: >
+          curl -fsS "https://csxjgbfrbbmspxdjrkxc.supabase.co/rest/v1/clothes?select=id&limit=1"
+          -H "apikey: sb_publishable_zMD2q8zaSKm4fKQkg_gzvA_iu06HsiO"

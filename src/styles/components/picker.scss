@@ -57,6 +57,38 @@
     }
 }
 
+// Onglets: la carte et ses layers (ex: Shirts / Coats)
+.picker__tabs {
+    display: flex;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-md) 0;
+
+    &[hidden] {
+        display: none;
+    }
+}
+
+.picker__tab {
+    border: 0;
+    border-radius: 999px;
+    padding: 0.5em 1.1em;
+    background-color: var(--color-button);
+    color: var(--color-text);
+    font-family: var(--font-primary);
+    font-weight: 700;
+    cursor: pointer;
+
+    &[aria-pressed='true'] {
+        background-color: var(--color-text);
+        color: var(--color-bg);
+    }
+
+    &:focus-visible {
+        outline: 3px solid var(--color-focus);
+        outline-offset: 2px;
+    }
+}
+
 .picker__grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -105,6 +137,20 @@
     }
 }
 
+// Case « aucun » d'un layer
+.picker__item--none {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+
+    .icon {
+        width: 40px;
+        height: 40px;
+        opacity: 0.5;
+    }
+}
+
 // Mini personnage dans la liste des tenues sauvegardées (mêmes chevauchements que clothes.scss)
 .outfit {
     display: flex;
@@ -112,33 +158,52 @@
     align-items: center;
     overflow: hidden;
 
-    img {
+    .outfit__piece {
+        position: relative;
+        display: block;
         width: 100%;
     }
 
-    .outfit__heads {
+    img {
         position: relative;
-        z-index: 4;
+        width: 100%;
+    }
+
+    .outfit__layer {
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+
+    .outfit__heads {
         width: 70%;
         margin-top: -17%;
+
+        img { z-index: 6; }
     }
 
     .outfit__shirts {
-        position: relative;
-        z-index: 3;
         margin-top: -26%;
+
+        img { z-index: 4; }
+
+        .outfit__coats {
+            z-index: 3;
+            transform: translate(var(--coat-x), var(--coat-y));
+        }
     }
 
     .outfit__pants {
-        position: relative;
-        z-index: 2;
         margin-top: -26%;
+
+        img { z-index: 2; }
+        .outfit__belts { z-index: 5; }
     }
 
     .outfit__shoes {
-        position: relative;
-        z-index: 1;
         width: 90%;
         margin-top: -10%;
+
+        img { z-index: 1; }
     }
 }

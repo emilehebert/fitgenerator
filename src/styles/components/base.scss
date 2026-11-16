@@ -20,6 +20,9 @@ $figure-ratio: 2.36;
     --button-size: clamp(36px, calc(var(--figure-width) * 0.17), 64px);
     // Largeur des lignes: d'un centre de colonne de boutons à l'autre
     --sheet-width: calc(var(--figure-width) * 1.5 - var(--button-size));
+    // Décalage du manteau derrière le chandail (positif = droite, négatif = haut)
+    --coat-x: 30%;
+    --coat-y: -12%;
 
     display: flex;
     flex-direction: column;

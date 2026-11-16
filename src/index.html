@@ -48,13 +48,10 @@
                 {% for category in categories %}
                     <div class="card card--{{ category.name }} prevent-select" data-category="{{ category.name }}">
                         <div class="card__content">
+                            {# Un seul groupe à gauche: la droite reste libre pour le manteau #}
                             <div class="menu">
                                 {{ ui.button('lock-open', 'js-lock', 'Lock ' ~ category.label) }}
-                                {{ ui.button('chevron-left', 'js-prev', 'Previous ' ~ category.label) }}
-                            </div>
-                            <div class="menu">
                                 {{ ui.button('grid', 'js-pick', 'Choose ' ~ category.label) }}
-                                {{ ui.button('chevron-right', 'js-next', 'Next ' ~ category.label) }}
                             </div>
                         </div>
                         <div class="card__media">
@@ -86,6 +83,7 @@
                     </label>
                     {{ ui.button('close', 'js-picker-close', 'Close') }}
                 </div>
+                <div class="picker__tabs js-picker-tabs" hidden></div>
                 <div class="picker__grid js-picker-grid"></div>
             </dialog>
         </main>

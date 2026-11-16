@@ -1,9 +1,12 @@
+import { loadCatalog } from '../utils/Catalog.js';
+
 const IMAGE_PATH = 'assets/images/clothes';
 const FAVORITES_KEY = 'fitgen-favorites';
 const HISTORY_LIMIT = 50;
 
 // Chaque catégorie a une ou plusieurs variantes (ex: chandails ou crewnecks).
-// `count` = nombre d'images numérotées 0..count-1 dans le dossier de la variante.
+// La liste des vêtements vient de Supabase (voir utils/Catalog.js).
+// `count` = images de secours 0..count-1 dans le dossier local, si le cloud ne répond pas.
 // `empty` = image affichée quand la catégorie est vide.
 const CATEGORIES = {
   heads: {
@@ -26,7 +29,22 @@ const CATEGORIES = {
       { name: 'shoes', label: 'Shoes', count: 3, empty: 'ShoesDefault', thumbs: 'shoes/sides' },
     ],
   },
+
+  // Layers: posés par-dessus la carte `on`, invisibles quand vides.
+  // `height` = hauteur de l'image pour une largeur de 1000.
+  coats: {
+    on: 'shirts',
+    height: 1000,
+    variants: [{ name: 'coats', label: 'Coats', count: 1 }],
+  },
+  belts: {
+    on: 'pants',
+    height: 250,
+    variants: [{ name: 'belts', label: 'Belts', count: 2 }],
+  },
 };
+
+const isLayer = (category) => Boolean(CATEGORIES[category].on);
 
 export default class Clothes {
   constructor(element) {
@@ -37,6 +55,7 @@ export default class Clothes {
     this.pickerVariant = element.querySelector('.js-picker-variant');
     this.pickerToggle = element.querySelector('.js-picker-toggle');
     this.pickerVariantLabel = element.querySelector('.js-picker-variant-label');
+    this.pickerTabs = element.querySelector('.js-picker-tabs');
     this.shuffleButton = element.querySelector('.js-shuffle-all');
     this.favoriteButton = element.querySelector('.js-favorite');
     this.undoButton = element.querySelector('.js-undo');
@@ -48,11 +67,13 @@ export default class Clothes {
     this.history = [];
     this.historyIndex = -1;
     this.favorites = this.loadFavorites();
+    // { [nom de variante]: [{ id, base, thumb }] }, rempli par loadCatalog
+    this.catalog = {};
 
     this.init();
   }
 
-  init() {
+  async init() {
     const cards = this.element.querySelectorAll('[data-category]');
 
     for (let i = 0; i < cards.length; i++) {
@@ -67,11 +88,44 @@ export default class Clothes {
       };
     }
 
+    this.createLayers();
+
+    const variants = Object.values(CATEGORIES).flatMap((category) => category.variants);
+    this.catalog = await loadCatalog(variants);
+
     this.element.addEventListener('click', this.onClick.bind(this));
     this.pickerToggle.addEventListener('change', this.onVariantChange.bind(this));
 
     this.shuffleAll();
     this.commit();
+  }
+
+  // Ajoute une image par layer dans la carte qui le porte
+  createLayers() {
+    for (const category in CATEGORIES) {
+      const { on, height } = CATEGORIES[category];
+      if (!on || !this.state[on]) continue;
+
+      const image = document.createElement('img');
+      image.className = `card__layer card__layer--${category}`;
+      image.alt = '';
+      image.width = 1000;
+      image.height = height;
+      image.sizes = this.state[on].image.sizes;
+      image.hidden = true;
+      this.state[on].image.after(image);
+
+      this.state[category] = { variant: 0, index: null, card: this.state[on].card, image };
+    }
+  }
+
+  // Un layer suit le cadenas de sa carte
+  ownerOf(category) {
+    return isLayer(category) ? CATEGORIES[category].on : category;
+  }
+
+  layersOf(category) {
+    return Object.keys(CATEGORIES).filter((name) => CATEGORIES[name].on === category);
   }
 
   onClick(event) {
@@ -87,6 +141,7 @@ export default class Clothes {
     if (target.closest('.js-redo')) return this.travel(1);
     if (target.closest('.js-favorite')) return this.toggleFavorite();
     if (target.closest('.js-open-favorites')) return this.openPicker(null);
+    if (target.closest('.js-picker-tab')) return this.switchTab(target.closest('.js-picker-tab').dataset.tab);
 
     if (target.closest('.js-shuffle-all')) {
       this.shuffleAll();
@@ -113,9 +168,13 @@ export default class Clothes {
     return CATEGORIES[category].variants[this.state[category].variant];
   }
 
+  itemsOf(category) {
+    return this.catalog[this.variantOf(category).name] || [];
+  }
+
   // Retourne false (et fait trembler le cadenas) si la catégorie est barrée
   isFree(category) {
-    const state = this.state[category];
+    const state = this.state[this.ownerOf(category)];
     if (!state.locked) return true;
 
     this.shake(state.lockButton, 'is-shaking');
@@ -125,8 +184,16 @@ export default class Clothes {
   render(category) {
     const state = this.state[category];
     const variant = this.variantOf(category);
-    const isEmpty = state.index === null;
-    const file = `${IMAGE_PATH}/${variant.name}/${isEmpty ? variant.empty : state.index}`;
+    const item = state.index === null ? null : this.itemsOf(category)[state.index];
+    const isEmpty = !item;
+
+    // Layer vide: on le cache au lieu d'afficher une image par défaut
+    if (isLayer(category)) {
+      state.image.hidden = isEmpty;
+      if (isEmpty) return;
+    }
+
+    const file = isEmpty ? `${IMAGE_PATH}/${variant.name}/${variant.empty}` : item.base;
 
     // Deux tailles par image: le navigateur choisit selon `sizes` (voir index.html) et la densité d'écran
     state.image.srcset = `${file}-sm.webp 500w, ${file}.webp 1000w`;
@@ -138,7 +205,8 @@ export default class Clothes {
     if (!this.isFree(category)) return;
 
     const state = this.state[category];
-    const count = this.variantOf(category).count;
+    const count = this.itemsOf(category).length;
+    if (!count) return;
 
     if (state.index === null) {
       state.index = direction > 0 ? 0 : count - 1;
@@ -152,7 +220,8 @@ export default class Clothes {
     if (!this.isFree(category)) return;
 
     const state = this.state[category];
-    const count = this.variantOf(category).count;
+    const count = this.itemsOf(category).length;
+    if (!count) return;
     let index = Math.floor(Math.random() * count);
 
     // Évite de retomber sur le même vêtement
@@ -164,8 +233,10 @@ export default class Clothes {
     this.render(category);
   }
 
+  // Les layers portés changent aussi, les layers vides restent vides
   shuffleAll() {
     for (const category in this.state) {
+      if (isLayer(category) && this.state[category].index === null) continue;
       this.shuffle(category);
     }
     this.shake(this.shuffleButton, 'is-bouncing');
@@ -194,12 +265,33 @@ export default class Clothes {
   /* Historique (flèches du bas)
      ========================================================================== */
 
+  // Une tenue garde l'id de chaque vêtement (pas sa position dans la liste),
+  // pour survivre aux ajouts et suppressions dans le cloud
   snapshot() {
-    const outfit = {};
-    for (const category in this.state) {
-      outfit[category] = { variant: this.state[category].variant, index: this.state[category].index };
+    const result = {};
+    for (const category in CATEGORIES) {
+      const state = this.state[category];
+      const item = state && state.index !== null ? this.itemsOf(category)[state.index] : null;
+      result[category] = { variant: state ? state.variant : 0, id: item ? item.id : null };
     }
-    return outfit;
+    return result;
+  }
+
+  // Même forme pour toutes les tenues. Les vieux favoris n'ont pas de layers
+  // et gardent un `index`: il devient l'id migré (ex: shirts-3).
+  normalize(outfit) {
+    const result = {};
+    for (const category in CATEGORIES) {
+      const piece = outfit[category] || {};
+      const variant = piece.variant || 0;
+      let id = null;
+
+      if (piece.id !== undefined) id = piece.id;
+      else if (typeof piece.index === 'number') id = `${CATEGORIES[category].variants[variant].name}-${piece.index}`;
+
+      result[category] = { variant, id };
+    }
+    return result;
   }
 
   // Enregistre la tenue actuelle dans l'historique si elle a changé
@@ -226,11 +318,15 @@ export default class Clothes {
   }
 
   restore(outfit) {
+    outfit = this.normalize(outfit);
+
     for (const category in outfit) {
       if (!this.state[category]) continue;
 
-      this.state[category].variant = outfit[category].variant;
-      this.state[category].index = outfit[category].index;
+      const state = this.state[category];
+      state.variant = outfit[category].variant;
+      const index = this.itemsOf(category).findIndex((item) => item.id === outfit[category].id);
+      state.index = index === -1 ? null : index;
       this.render(category);
     }
     this.updateToolbar();
@@ -251,7 +347,8 @@ export default class Clothes {
 
   loadFavorites() {
     try {
-      return JSON.parse(localStorage.getItem(FAVORITES_KEY)) || [];
+      const saved = JSON.parse(localStorage.getItem(FAVORITES_KEY)) || [];
+      return saved.map((outfit) => this.normalize(outfit));
     } catch (error) {
       return [];
     }
@@ -301,9 +398,13 @@ export default class Clothes {
     const category = this.pickerCategory;
     const { variants } = CATEGORIES[category];
     const variant = this.variantOf(category);
-    const folder = variant.thumbs || variant.name;
+
+    const layer = isLayer(category);
+    const height = layer ? CATEGORIES[category].height / 2 : variant.thumbs ? 250 : 500;
+    const wide = variant.thumbs || (layer && height < 500);
 
     this.pickerTitle.textContent = `Your ${variant.label.toLowerCase()}`;
+    this.renderTabs(category);
 
     // La case à cocher ne sert que pour les catégories à deux variantes
     this.pickerVariant.hidden = variants.length < 2;
@@ -312,19 +413,56 @@ export default class Clothes {
       this.pickerToggle.checked = this.state[category].variant === 1;
     }
 
-    this.pickerGrid.className = `picker__grid js-picker-grid${variant.thumbs ? ' picker__grid--wide' : ''}`;
+    this.pickerGrid.className = `picker__grid js-picker-grid${wide ? ' picker__grid--wide' : ''}`;
     this.pickerGrid.innerHTML = '';
 
-    for (let i = 0; i < variant.count; i++) {
+    // Un layer peut être enlevé: première case = aucun
+    if (layer) {
+      const none = this.createPickerItem(-1, this.state[category].index === null);
+      none.classList.add('picker__item--none');
+      none.setAttribute('aria-label', `No ${variant.label.toLowerCase()}`);
+      none.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg>';
+      this.pickerGrid.appendChild(none);
+    }
+
+    const items = this.itemsOf(category);
+    for (let i = 0; i < items.length; i++) {
       const button = this.createPickerItem(i, i === this.state[category].index);
-      button.innerHTML = `<img src="${IMAGE_PATH}/${folder}/${i}-sm.webp" alt="${variant.label} ${i + 1}" width="500" height="${variant.thumbs ? 250 : 500}" loading="lazy" />`;
+      const src = items[i].thumb || `${items[i].base}-sm.webp`;
+      button.innerHTML = `<img src="${src}" alt="${variant.label} ${i + 1}" width="500" height="${height}" loading="lazy" />`;
       this.pickerGrid.appendChild(button);
     }
+  }
+
+  // Onglets en haut du dialog: la carte et ses layers (ex: Shirts, Coats)
+  renderTabs(category) {
+    const owner = this.ownerOf(category);
+    const tabs = [owner, ...this.layersOf(owner)];
+
+    this.pickerTabs.hidden = tabs.length < 2;
+    this.pickerTabs.innerHTML = '';
+    if (tabs.length < 2) return;
+
+    for (const name of tabs) {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'picker__tab js-picker-tab';
+      tab.dataset.tab = name;
+      tab.textContent = this.variantOf(name).label;
+      tab.setAttribute('aria-pressed', name === category);
+      this.pickerTabs.appendChild(tab);
+    }
+  }
+
+  switchTab(category) {
+    this.pickerCategory = category;
+    this.renderPicker();
   }
 
   renderFavorites() {
     this.pickerTitle.textContent = 'Saved outfits';
     this.pickerVariant.hidden = true;
+    this.pickerTabs.hidden = true;
     this.pickerGrid.className = 'picker__grid picker__grid--outfits js-picker-grid';
     this.pickerGrid.innerHTML = '';
 
@@ -338,14 +476,28 @@ export default class Clothes {
     for (let i = 0; i < this.favorites.length; i++) {
       const outfit = this.favorites[i];
       const button = this.createPickerItem(i, i === current);
-      const images = Object.keys(CATEGORIES).map((category) => {
-        const variant = CATEGORIES[category].variants[outfit[category].variant];
-        const file = outfit[category].index === null ? variant.empty : outfit[category].index;
-        return `<img class="outfit__${category}" src="${IMAGE_PATH}/${variant.name}/${file}-sm.webp" alt="" loading="lazy" />`;
-      });
+      const image = (category, className) => {
+        const piece = outfit[category];
+        const variant = CATEGORIES[category].variants[piece.variant];
+        const item = (this.catalog[variant.name] || []).find((entry) => entry.id === piece.id);
+        // Vêtement supprimé depuis: image vide de la catégorie (rien pour un layer)
+        if (!item && !variant.empty) return '';
+        const src = item ? `${item.base}-sm.webp` : `${IMAGE_PATH}/${variant.name}/${variant.empty}-sm.webp`;
+        return `<img class="${className}" src="${src}" alt="" loading="lazy" />`;
+      };
+
+      // Chaque morceau garde ses layers portés par-dessus lui
+      const pieces = Object.keys(CATEGORIES)
+        .filter((category) => !isLayer(category))
+        .map((category) => {
+          const layers = this.layersOf(category)
+            .filter((name) => outfit[name].id !== null)
+            .map((name) => image(name, `outfit__layer outfit__${name}`));
+          return `<span class="outfit__piece outfit__${category}">${image(category, '')}${layers.join('')}</span>`;
+        });
 
       button.setAttribute('aria-label', `Saved outfit ${i + 1}`);
-      button.innerHTML = `<span class="outfit">${images.join('')}</span>`;
+      button.innerHTML = `<span class="outfit">${pieces.join('')}</span>`;
       this.pickerGrid.appendChild(button);
     }
   }
@@ -372,7 +524,7 @@ export default class Clothes {
 
   pick(index) {
     if (this.pickerCategory) {
-      this.state[this.pickerCategory].index = index;
+      this.state[this.pickerCategory].index = index < 0 ? null : index;
       this.render(this.pickerCategory);
     } else {
       this.restore(this.favorites[index]);

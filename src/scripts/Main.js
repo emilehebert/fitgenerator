@@ -14,6 +14,11 @@ class Main {
     new ComponentFactory();
 
     Icons.load();
+
+    // Garde le site et les vêtements sur l'appareil pour marcher sans connexion (voir sw.js)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch((error) => console.warn('Service worker', error));
+    }
   }
 }
 new Main();
