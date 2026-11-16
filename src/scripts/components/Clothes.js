@@ -120,7 +120,10 @@ export default class Clothes {
       if (!on || !this.state[on]) continue;
 
       const image = document.createElement('img');
-      image.className = `card__layer card__layer--${category}`;
+      image.className = `card__layer card__layer--${category} js-layer`;
+      image.dataset.layer = category;
+      // Permet de lire la transparence d'un pixel (voir isOpaqueAt), les images du cloud ont le CORS
+      image.crossOrigin = 'anonymous';
       image.alt = '';
       image.width = 1000;
       image.height = height;
@@ -129,6 +132,29 @@ export default class Clothes {
       this.state[on].image.after(image);
 
       this.state[category] = { variant: 0, index: null, card: this.state[on].card, image };
+    }
+  }
+
+  // Vrai si le pixel cliqué de l'image n'est pas transparent
+  isOpaqueAt(image, event) {
+    try {
+      // L'image est dessinée à sa taille affichée: le pixel lu est exactement celui sous le doigt
+      // (naturalWidth ne suit pas toujours le vrai fichier quand srcset est utilisé)
+      const rect = image.getBoundingClientRect();
+      const width = Math.max(1, Math.round(rect.width));
+      const height = Math.max(1, Math.round(rect.height));
+
+      this.hitCanvas = this.hitCanvas || document.createElement('canvas');
+      this.hitCanvas.width = width;
+      this.hitCanvas.height = height;
+      const context = this.hitCanvas.getContext('2d', { willReadFrequently: true });
+      context.drawImage(image, 0, 0, width, height);
+      const x = Math.min(width - 1, Math.max(0, Math.floor(event.clientX - rect.left)));
+      const y = Math.min(height - 1, Math.max(0, Math.floor(event.clientY - rect.top)));
+      return context.getImageData(x, y, 1, 1).data[3] > 25;
+    } catch (error) {
+      // Image pas lisible (CORS): on considère que le clic touche le layer
+      return true;
     }
   }
 
@@ -172,7 +198,12 @@ export default class Clothes {
       else if (target.closest('.js-prev')) this.step(category, -1);
       else if (target.closest('.js-next')) this.step(category, 1);
       else if (target.closest('.js-pick')) this.openPicker(category);
-      else if (target.closest('.js-image')) this.shuffle(category);
+      else if (target.closest('.js-layer')) {
+        // Clic sur le layer lui-même: on change le layer. Sur une zone transparente
+        // de son cadre (ex: autour de la ceinture): on change la pièce en dessous.
+        const layer = target.closest('.js-layer');
+        this.shuffle(this.isOpaqueAt(layer, event) ? layer.dataset.layer : category);
+      } else if (target.closest('.js-image')) this.shuffle(category);
     }
 
     this.commit();
@@ -451,8 +482,9 @@ export default class Clothes {
     this.pickerGrid.className = `picker__grid js-picker-grid${wide ? ' picker__grid--wide' : ''}`;
     this.pickerGrid.innerHTML = '';
 
-    // Un layer peut être enlevé: première case = aucun
-    if (layer) {
+    // Première case = aucun: le layer disparaît, la pièce de base montre son image vide.
+    // La tête n'a pas d'image vide, elle est toujours portée.
+    if (layer || variant.empty) {
       const none = this.createPickerItem(-1, this.state[category].index === null);
       none.classList.add('picker__item--none');
       none.setAttribute('aria-label', `No ${variant.label.toLowerCase()}`);

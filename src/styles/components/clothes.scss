@@ -69,12 +69,13 @@
         cursor: pointer;
     }
 
-    // Layer posé en haut de l'image de sa carte (peut dépasser en bas, ex: manteau)
+    // Layer posé en haut de l'image de sa carte (peut dépasser en bas, ex: manteau).
+    // Cliquable: un clic le change (voir isOpaqueAt dans Clothes.js)
     .card__layer {
         position: absolute;
         top: 0;
         left: 0;
-        pointer-events: none;
+        cursor: pointer;
 
         &[hidden] {
             display: none;
