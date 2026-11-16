@@ -26,8 +26,17 @@ create table if not exists public.admins (
     user_id uuid primary key references auth.users on delete cascade
 );
 
+-- Admins par courriel: permet d'autoriser un compte avant sa première connexion.
+-- Le courriel est fiable, il est vérifié par le code reçu. Pour autoriser quelqu'un
+-- (à faire dans le SQL Editor, jamais dans ce fichier public):
+--   insert into public.admin_emails (email) values ('ton@courriel.com');
+create table if not exists public.admin_emails (
+    email text primary key
+);
+
 alter table public.clothes enable row level security;
 alter table public.admins enable row level security;
+alter table public.admin_emails enable row level security;
 
 create or replace function public.is_admin()
 returns boolean
@@ -36,7 +45,11 @@ stable
 security definer
 set search_path = ''
 as $$
-    select exists (select 1 from public.admins where user_id = (select auth.uid()));
+    select exists (select 1 from public.admins where user_id = (select auth.uid()))
+        or exists (
+            select 1 from public.admin_emails
+            where email = lower((select auth.jwt() ->> 'email'))
+        );
 $$;
 
 -- "Automatically expose new tables" est décoché: on donne l'accès à la main

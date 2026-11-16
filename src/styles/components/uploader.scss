@@ -1,0 +1,148 @@
+/* ==========================================================================
+   uploader / component
+   Fenêtre d'ajout d'un vêtement (reprend la boîte et l'en-tête de .picker)
+   ========================================================================== */
+
+.uploader {
+    width: min(480px, calc(100vw - 2 * var(--spacing-sm)));
+    font-family: var(--font-primary);
+}
+
+.uploader__body {
+    padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
+    overflow-y: auto;
+
+    section {
+        display: flex;
+        flex-direction: column;
+        gap: var(--spacing-sm);
+
+        &[hidden] {
+            display: none;
+        }
+    }
+}
+
+.uploader__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+
+    &[hidden] {
+        display: none;
+    }
+}
+
+.uploader__text,
+.uploader__message {
+    margin: 0;
+    color: var(--color-text-muted);
+}
+
+.uploader__message {
+    margin-bottom: var(--spacing-sm);
+    color: var(--color-text);
+    font-weight: 700;
+
+    &[hidden] {
+        display: none;
+    }
+}
+
+.uploader__input {
+    width: 100%;
+    border: 2px solid var(--color-button);
+    border-radius: 12px;
+    padding: 0.8em 1em;
+    // 16px minimum: sinon Safari zoome sur le champ
+    font-size: 16px;
+    font-family: inherit;
+
+    &:focus-visible {
+        border-color: var(--color-focus);
+        outline: none;
+    }
+}
+
+.uploader__action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 50px;
+    border: 0;
+    border-radius: 999px;
+    padding: 0 1.4em;
+    background-color: var(--color-text);
+    color: var(--color-bg);
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+
+    &--light {
+        background-color: var(--color-button);
+        color: var(--color-text);
+    }
+
+    &:focus-within,
+    &:focus-visible {
+        outline: 3px solid var(--color-focus);
+        outline-offset: 2px;
+    }
+}
+
+.uploader__sources {
+    padding: 0;
+}
+
+.uploader__row {
+    display: flex;
+    gap: var(--spacing-sm);
+
+    .uploader__action {
+        flex: 1;
+    }
+}
+
+.uploader__progress {
+    width: 100%;
+    height: 10px;
+    accent-color: var(--color-text);
+}
+
+// Le cadre de la catégorie, avec le bonhomme vide dessous et la nouvelle pièce par-dessus
+.uploader__stage {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 12px;
+    background-color: var(--color-button);
+    touch-action: none;
+    cursor: grab;
+}
+
+.uploader__reference {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.uploader__preview {
+    position: absolute;
+    top: 0;
+    left: 0;
+    max-width: none;
+    height: auto;
+    transform-origin: 0 0;
+    pointer-events: none;
+    user-select: none;
+}
+
+.uploader__zoom {
+    width: 100%;
+    accent-color: var(--color-text);
+}

@@ -9,6 +9,10 @@
 const SITE_CACHE = 'fitgen-site';
 const IMAGE_CACHE = 'fitgen-images'; // même nom que dans Catalog.js
 const CLOUD_IMAGES = '/storage/v1/object/public/clothes/';
+// Modèle de détourage (@imgly/background-removal): gros (environ 80 Mo), il ne change
+// jamais pour une même version, donc téléchargé une seule fois puis gardé
+const TOOLS_CACHE = 'fitgen-tools';
+const TOOLS_HOST = 'staticimgly.com';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
@@ -20,14 +24,16 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   if (url.pathname.startsWith(CLOUD_IMAGES)) {
-    event.respondWith(cloudImage(url.href));
+    event.respondWith(cacheFirst(IMAGE_CACHE, url.href));
+  } else if (url.hostname === TOOLS_HOST) {
+    event.respondWith(cacheFirst(TOOLS_CACHE, url.href));
   } else if (url.origin === self.location.origin) {
     event.respondWith(networkFirst(request));
   }
 });
 
-async function cloudImage(href) {
-  const cache = await caches.open(IMAGE_CACHE);
+async function cacheFirst(name, href) {
+  const cache = await caches.open(name);
   const cached = await cache.match(href);
   if (cached) return cached;
 

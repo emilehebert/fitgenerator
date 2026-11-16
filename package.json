@@ -55,5 +55,10 @@
   "license": "MIT",
   "peerDependencies": {
     "webpack": "5.0.0"
+  },
+  "dependencies": {
+    "@imgly/background-removal": "1.7.0",
+    "@jsquash/webp": "1.5.0",
+    "@supabase/supabase-js": "2.118.0"
   }
 }

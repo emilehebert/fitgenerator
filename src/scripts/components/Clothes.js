@@ -1,4 +1,10 @@
-import { loadCatalog } from '../utils/Catalog.js';
+import { loadCatalog, cloudItem, readPendingRows } from '../utils/Catalog.js';
+import { FRAMES } from '../utils/ImagePipeline.js';
+
+// L'ajout de vêtements (Supabase, détourage, WebP) est chargé seulement quand on en a besoin:
+// la page de base reste légère pour les visiteurs.
+const loadUploader = () => import('./Uploader.js');
+const flushUploads = () => import('../utils/UploadQueue.js').then(({ flush }) => flush());
 
 const IMAGE_PATH = 'assets/images/clothes';
 const FAVORITES_KEY = 'fitgen-favorites';
@@ -54,6 +60,9 @@ const CATEGORIES = {
 
 const isLayer = (category) => Boolean(CATEGORIES[category].on);
 
+// Nom d'un dossier du cloud dans la fenêtre d'ajout (ex: choisir Coat ou Crewneck)
+const SOURCE_LABELS = { coats: 'Coat', crewnecks: 'Crewneck' };
+
 // Dossiers du cloud lus par une variante (elle-même, ou ses `sources`)
 const sourcesOf = (variant) => variant.sources || [variant];
 
@@ -105,6 +114,13 @@ export default class Clothes {
       .flatMap((category) => category.variants)
       .flatMap(sourcesOf);
     this.catalog = await loadCatalog(sources);
+
+    // Vêtements ajoutés sans Internet: envoyés au démarrage et au retour du réseau
+    const sendPending = () => {
+      if (readPendingRows().length) flushUploads().catch((error) => console.warn("File d'envoi", error));
+    };
+    sendPending();
+    window.addEventListener('online', sendPending);
 
     this.element.addEventListener('click', this.onClick.bind(this));
     this.pickerToggle.addEventListener('change', this.onVariantChange.bind(this));
@@ -181,6 +197,7 @@ export default class Clothes {
     if (target.closest('.js-favorite')) return this.toggleFavorite();
     if (target.closest('.js-open-favorites')) return this.openPicker(null);
     if (target.closest('.js-favorite-remove')) return this.removeFavorite(Number(target.closest('.js-favorite-remove').dataset.index));
+    if (target.closest('.js-add')) return this.openUploader();
     if (target.closest('.js-picker-tab')) return this.switchTab(target.closest('.js-picker-tab').dataset.tab);
 
     if (target.closest('.js-shuffle-all')) {
@@ -482,14 +499,30 @@ export default class Clothes {
     this.pickerGrid.className = `picker__grid js-picker-grid${wide ? ' picker__grid--wide' : ''}`;
     this.pickerGrid.innerHTML = '';
 
-    // Première case = aucun: le layer disparaît, la pièce de base montre son image vide.
-    // La tête n'a pas d'image vide, elle est toujours portée.
-    if (layer || variant.empty) {
-      const none = this.createPickerItem(-1, this.state[category].index === null);
-      none.classList.add('picker__item--none');
-      none.setAttribute('aria-label', `No ${variant.label.toLowerCase()}`);
-      none.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg>';
-      this.pickerGrid.appendChild(none);
+    // Première case, coupée en deux pour prendre peu de place:
+    // X = aucun (le layer disparaît, la pièce de base montre son image vide) et + = ajouter.
+    // La tête n'a ni image vide ni cadre de photo: elle n'a pas cette case.
+    const canRemove = layer || Boolean(variant.empty);
+    const canAdd = sourcesOf(variant).every((source) => FRAMES[source.name]);
+    if (canRemove || canAdd) {
+      const actions = document.createElement('div');
+      actions.className = 'picker__actions';
+
+      if (canRemove) {
+        const none = this.createPickerItem(-1, this.state[category].index === null);
+        none.classList.add('picker__item--none');
+        none.setAttribute('aria-label', `No ${variant.label.toLowerCase()}`);
+        none.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg>';
+        actions.appendChild(none);
+      }
+      if (canAdd) {
+        actions.insertAdjacentHTML(
+          'beforeend',
+          `<button type="button" class="picker__item picker__item--add js-add" aria-label="Add ${variant.label.toLowerCase()}">` +
+            '<svg class="icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button>',
+        );
+      }
+      this.pickerGrid.appendChild(actions);
     }
 
     const items = this.itemsOf(category);
@@ -580,6 +613,41 @@ export default class Clothes {
       );
       this.pickerGrid.appendChild(wrapper);
     }
+  }
+
+  /* Ajout d'un vêtement (voir Uploader.js)
+     ========================================================================== */
+
+  async openUploader() {
+    const category = this.pickerCategory;
+    const variant = this.variantOf(category);
+    // Image vide de la carte qui porte la pièce: sert de bonhomme pour l'ajustement
+    const owner = this.variantOf(this.ownerOf(category));
+
+    this.closePicker();
+    if (!this.uploader) {
+      const { default: Uploader } = await loadUploader();
+      this.uploader = new Uploader(this.element.querySelector('.js-uploader'), { onAdded: (row) => this.addItem(row) });
+    }
+    this.uploader.open({
+      label: variant.label,
+      sources: sourcesOf(variant).map((source) => ({ name: source.name, label: SOURCE_LABELS[source.name] || variant.label })),
+      reference: `${IMAGE_PATH}/${owner.name}/${owner.empty}.webp`,
+    });
+  }
+
+  // Nouveau vêtement: ajouté à la liste et porté tout de suite
+  addItem(row) {
+    this.catalog[row.category] = [...(this.catalog[row.category] || []), cloudItem(row)];
+
+    for (const category in CATEGORIES) {
+      const state = this.state[category];
+      if (!state || !sourcesOf(this.variantOf(category)).some((source) => source.name === row.category)) continue;
+
+      state.index = this.itemsOf(category).findIndex((item) => item.id === row.id);
+      this.render(category);
+    }
+    this.commit();
   }
 
   removeFavorite(index) {

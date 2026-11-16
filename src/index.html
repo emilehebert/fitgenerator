@@ -86,6 +86,60 @@
                 <div class="picker__tabs js-picker-tabs" hidden></div>
                 <div class="picker__grid js-picker-grid"></div>
             </dialog>
+
+            {# Ajout d'un vêtement: voir scripts/components/Uploader.js #}
+            <dialog class="picker uploader js-uploader">
+                <div class="picker__header">
+                    <h2 class="picker__title js-uploader-title">Add</h2>
+                    {{ ui.button('close', 'js-uploader-close', 'Close') }}
+                </div>
+
+                <div class="uploader__body">
+                    <p class="uploader__message js-uploader-message" role="status" hidden></p>
+
+                    <section data-step="login" hidden>
+                        <form class="uploader__form js-uploader-login">
+                            <p class="uploader__text">Sign in to add clothes. You will get a 6-digit code by email.</p>
+                            <input class="uploader__input js-uploader-email" type="email" autocomplete="email" placeholder="Email" required />
+                            <div class="uploader__form js-uploader-code-field" hidden>
+                                <input class="uploader__input js-uploader-code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit code" />
+                            </div>
+                            <button type="submit" class="uploader__action">Continue</button>
+                        </form>
+                    </section>
+
+                    <section data-step="source" hidden>
+                        <div class="picker__tabs uploader__sources js-uploader-sources" hidden></div>
+                        <p class="uploader__text">Lay the piece flat on a plain background, with good light.</p>
+                        <label class="uploader__action">
+                            Take a photo
+                            <input class="visually-hidden js-uploader-file" type="file" accept="image/*" capture="environment" />
+                        </label>
+                        <label class="uploader__action uploader__action--light">
+                            Choose from library
+                            <input class="visually-hidden js-uploader-file" type="file" accept="image/*" />
+                        </label>
+                    </section>
+
+                    <section data-step="working" hidden>
+                        <progress class="uploader__progress js-uploader-progress" max="1" value="0"></progress>
+                        <p class="uploader__text js-uploader-status"></p>
+                    </section>
+
+                    <section data-step="adjust" hidden>
+                        <p class="uploader__text">Drag to move, pinch or use the slider to resize.</p>
+                        <div class="uploader__stage js-uploader-stage">
+                            <img class="uploader__reference js-uploader-reference" alt="" />
+                            <img class="uploader__preview js-uploader-preview" alt="New piece" draggable="false" />
+                        </div>
+                        <input class="uploader__zoom js-uploader-zoom" type="range" min="30" max="250" value="100" aria-label="Size" />
+                        <div class="uploader__row">
+                            <button type="button" class="uploader__action uploader__action--light js-uploader-retake">Retake</button>
+                            <button type="button" class="uploader__action js-uploader-save">Save</button>
+                        </div>
+                    </section>
+                </div>
+            </dialog>
         </main>
     </body>
 </html>

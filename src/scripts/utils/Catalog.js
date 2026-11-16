@@ -3,12 +3,14 @@
 export const SUPABASE_URL = 'https://csxjgbfrbbmspxdjrkxc.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_zMD2q8zaSKm4fKQkg_gzvA_iu06HsiO';
 
-const STORAGE_URL = `${SUPABASE_URL}/storage/v1/object/public/clothes`;
+export const STORAGE_URL = `${SUPABASE_URL}/storage/v1/object/public/clothes`;
 const LOCAL_PATH = 'assets/images/clothes';
 // Dernière liste reçue du cloud, gardée sur l'appareil
 const CATALOG_KEY = 'fitgen-catalog';
 // Même nom que dans sw.js: les images téléchargées d'avance y sont servies hors ligne
-const IMAGE_CACHE = 'fitgen-images';
+export const IMAGE_CACHE = 'fitgen-images';
+// Vêtements ajoutés sur cet appareil mais pas encore envoyés (voir UploadQueue.js)
+const PENDING_KEY = 'fitgen-pending';
 // Téléchargements en parallèle pendant la synchro
 const SYNC_CONCURRENCY = 4;
 // Au-delà, on abandonne le cloud et on affiche les images locales
@@ -16,7 +18,7 @@ const TIMEOUT = 4000;
 
 // Un vêtement = un id stable + le chemin de ses fichiers sans extension.
 // `base` donne `${base}.webp` (1000 px) et `${base}-sm.webp` (500 px).
-const cloudItem = (row) => ({
+export const cloudItem = (row) => ({
   id: row.id,
   base: `${STORAGE_URL}/${row.category}/${row.id}`,
   thumb: row.has_thumb ? `${STORAGE_URL}/${row.category}/${row.id}-thumb.webp` : null,
@@ -51,6 +53,29 @@ async function fetchRows() {
     clearTimeout(timer);
   }
 }
+
+// Lignes en attente d'envoi: affichées comme les autres (leurs images sont déjà dans le cache)
+export function readPendingRows() {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_KEY)) || [];
+  } catch (error) {
+    return [];
+  }
+}
+
+export function writePendingRows(rows) {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(rows));
+  } catch (error) {
+    // Navigation privée: l'attente durera seulement le temps de la page
+  }
+}
+
+// Ajoute les vêtements en attente qui ne sont pas encore dans la liste du cloud
+const withPending = (rows) => {
+  const known = new Set(rows.map((row) => row.id));
+  return rows.concat(readPendingRows().filter((row) => !known.has(row.id)));
+};
 
 function readSavedRows() {
   try {
@@ -117,12 +142,13 @@ export async function loadCatalog(variants) {
     rows = await fetchRows();
     if (rows.length) {
       saveRows(rows);
+      rows = withPending(rows);
       // Demande au navigateur de ne pas effacer le cache quand l'espace manque
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
       syncImages(rows).catch((error) => console.warn('Synchro des images', error));
     }
   } catch (error) {
-    rows = readSavedRows();
+    rows = withPending(readSavedRows());
     const source = rows.length ? "liste gardée sur l'appareil" : 'images locales';
     console.warn(`Cloud indisponible: ${source} utilisée.`, error);
   }

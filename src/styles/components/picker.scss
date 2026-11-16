@@ -137,17 +137,24 @@
     }
 }
 
-// Case « aucun » d'un layer
-.picker__item--none {
+// Première case de la grille, coupée en deux: X (aucun) en haut, + (ajouter) en bas
+.picker__actions {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 80px;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+
+    .picker__item {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+    }
 
     .icon {
-        width: 40px;
-        height: 40px;
-        opacity: 0.5;
+        width: 28px;
+        height: 28px;
+        opacity: 0.55;
     }
 }
 
