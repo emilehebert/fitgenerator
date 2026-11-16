@@ -151,12 +151,58 @@
     }
 }
 
-// Mini personnage dans la liste des tenues sauvegardées (mêmes chevauchements que clothes.scss)
+// Une tenue sauvegardée + son bouton supprimer dans le coin
+.picker__favorite {
+    position: relative;
+    display: flex;
+
+    .picker__item {
+        flex: 1;
+        overflow: hidden;
+    }
+}
+
+.picker__remove {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 50%;
+    padding: 0;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+    cursor: pointer;
+
+    .icon {
+        width: 18px;
+        height: 18px;
+    }
+
+    &:focus-visible {
+        outline: 3px solid var(--color-focus);
+        outline-offset: 2px;
+    }
+}
+
+// Mini personnage dans la liste des tenues sauvegardées (mêmes chevauchements que clothes.scss).
+// Plus étroit que la carte pour laisser la place au manteau décalé à droite.
 .outfit {
     display: flex;
     flex-direction: column;
     align-items: center;
-    overflow: hidden;
+    width: 72%;
+    margin-inline: auto;
+
+    &--coat {
+        margin-left: 4%;
+    }
 
     .outfit__piece {
         position: relative;
@@ -167,6 +213,7 @@
     img {
         position: relative;
         width: 100%;
+        height: auto;
     }
 
     .outfit__layer {

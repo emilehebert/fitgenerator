@@ -25,6 +25,7 @@ const CATEGORIES = {
     ],
   },
   shoes: {
+    height: 500,
     variants: [
       { name: 'shoes', label: 'Shoes', count: 3, empty: 'ShoesDefault', thumbs: 'shoes/sides' },
     ],
@@ -141,6 +142,7 @@ export default class Clothes {
     if (target.closest('.js-redo')) return this.travel(1);
     if (target.closest('.js-favorite')) return this.toggleFavorite();
     if (target.closest('.js-open-favorites')) return this.openPicker(null);
+    if (target.closest('.js-favorite-remove')) return this.removeFavorite(Number(target.closest('.js-favorite-remove').dataset.index));
     if (target.closest('.js-picker-tab')) return this.switchTab(target.closest('.js-picker-tab').dataset.tab);
 
     if (target.closest('.js-shuffle-all')) {
@@ -483,7 +485,9 @@ export default class Clothes {
         // Vêtement supprimé depuis: image vide de la catégorie (rien pour un layer)
         if (!item && !variant.empty) return '';
         const src = item ? `${item.base}-sm.webp` : `${IMAGE_PATH}/${variant.name}/${variant.empty}-sm.webp`;
-        return `<img class="${className}" src="${src}" alt="" loading="lazy" />`;
+        // Taille réservée d'avance: sinon la carte est écrasée tant que l'image n'est pas chargée
+        const height = (CATEGORIES[category].height || 1000) / 2;
+        return `<img class="${className}" src="${src}" alt="" width="500" height="${height}" loading="lazy" />`;
       };
 
       // Chaque morceau garde ses layers portés par-dessus lui
@@ -496,10 +500,28 @@ export default class Clothes {
           return `<span class="outfit__piece outfit__${category}">${image(category, '')}${layers.join('')}</span>`;
         });
 
+      const wearsCoat = outfit.coats && outfit.coats.id !== null;
       button.setAttribute('aria-label', `Saved outfit ${i + 1}`);
-      button.innerHTML = `<span class="outfit">${pieces.join('')}</span>`;
-      this.pickerGrid.appendChild(button);
+      button.innerHTML = `<span class="outfit${wearsCoat ? ' outfit--coat' : ''}">${pieces.join('')}</span>`;
+
+      // Le bouton supprimer est à côté de la carte (pas dedans: un bouton ne peut pas en contenir un autre)
+      const wrapper = document.createElement('div');
+      wrapper.className = 'picker__favorite';
+      wrapper.appendChild(button);
+      wrapper.insertAdjacentHTML(
+        'beforeend',
+        `<button type="button" class="picker__remove js-favorite-remove" data-index="${i}" aria-label="Delete saved outfit ${i + 1}">` +
+          '<svg class="icon" aria-hidden="true"><use href="#icon-delete"></use></svg></button>',
+      );
+      this.pickerGrid.appendChild(wrapper);
     }
+  }
+
+  removeFavorite(index) {
+    this.favorites.splice(index, 1);
+    this.saveFavorites();
+    this.renderFavorites();
+    this.updateToolbar();
   }
 
   createPickerItem(index, selected) {
