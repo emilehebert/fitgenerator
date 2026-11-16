@@ -122,6 +122,14 @@ export default class Clothes {
     sendPending();
     window.addEventListener('online', sendPending);
 
+    // Retour du lien de connexion reçu par courriel: on garde la session et on rouvre l'ajout
+    if (/access_token|error_description/.test(location.hash)) {
+      import('../utils/Supabase.js')
+        .then(({ finishSignIn }) => finishSignIn())
+        .then((session) => session && sendPending())
+        .catch((error) => console.warn('Connexion', error));
+    }
+
     this.element.addEventListener('click', this.onClick.bind(this));
     this.pickerToggle.addEventListener('change', this.onVariantChange.bind(this));
 

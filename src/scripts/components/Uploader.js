@@ -1,7 +1,7 @@
 // Fenêtre « Add »: connexion → photo → détourage → ajustement sur le bonhomme → envoi.
 // Ouverte par Clothes.js avec la catégorie du picker.
 
-import { sendCode, verifyCode, currentSession, isAdmin } from '../utils/Supabase.js';
+import { sendLink, currentSession, isAdmin } from '../utils/Supabase.js';
 import { cutOut, defaultPlacement, exportFiles, FRAMES } from '../utils/ImagePipeline.js';
 import { enqueue } from '../utils/UploadQueue.js';
 
@@ -17,8 +17,6 @@ export default class Uploader {
     this.message = element.querySelector('.js-uploader-message');
     this.steps = element.querySelectorAll('[data-step]');
     this.emailInput = element.querySelector('.js-uploader-email');
-    this.codeField = element.querySelector('.js-uploader-code-field');
-    this.codeInput = element.querySelector('.js-uploader-code');
     this.sourcesBox = element.querySelector('.js-uploader-sources');
     this.progress = element.querySelector('.js-uploader-progress');
     this.status = element.querySelector('.js-uploader-status');
@@ -51,7 +49,14 @@ export default class Uploader {
     this.element.showModal();
 
     const session = await currentSession();
-    this.show(session ? 'source' : 'login');
+    if (!session) return this.show('login');
+    // Connecté, mais seul le compte autorisé peut ajouter (vérifié aussi par Supabase à l'envoi)
+    try {
+      if (!(await isAdmin())) return this.show('login', 'This account is not allowed to add clothes.');
+    } catch (error) {
+      // Hors ligne: impossible de vérifier, l'ajout attendra dans la file d'envoi
+    }
+    this.show('source');
   }
 
   close() {
@@ -92,7 +97,7 @@ export default class Uploader {
     if (target.closest('.js-uploader-save')) this.save();
   }
 
-  /* Connexion par code reçu par courriel
+  /* Connexion par lien reçu par courriel
      ========================================================================== */
 
   async onSubmit(event) {
@@ -100,22 +105,12 @@ export default class Uploader {
     const email = this.emailInput.value.trim();
 
     try {
-      if (event.target.matches('.js-uploader-login') && this.codeField.hidden) {
-        await sendCode(email);
-        this.codeField.hidden = false;
-        this.codeInput.focus();
-        this.show('login', `Code sent to ${email}. Check your inbox.`);
-        return;
-      }
-
-      await verifyCode(email, this.codeInput.value.trim());
-      if (!(await isAdmin())) {
-        this.show('login', 'Signed in, but this account is not allowed to add clothes yet.');
-        return;
-      }
-      this.show('source');
+      await sendLink(email);
+      this.show('login', `Link sent to ${email}. Open it on this device to sign in.`);
     } catch (error) {
-      this.show('login', error.message || 'Something went wrong. Try again.');
+      // Compte inconnu (inscriptions fermées) ou trop de demandes
+      const refused = /signups not allowed|not found/i.test(error.message || '');
+      this.show('login', refused ? 'This email is not allowed to add clothes.' : error.message || 'Something went wrong. Try again.');
     }
   }
 
