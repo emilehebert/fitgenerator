@@ -21,6 +21,9 @@ const webpackConfig = {
   },
   output: {
     filename: '[name].js',
+    // Morceaux chargés plus tard (Uploader, Supabase...): nom unique par version,
+    // sinon le navigateur peut garder l'ancien en cache après une mise à jour
+    chunkFilename: '[name].[contenthash:8].js',
   },
 
   module: {

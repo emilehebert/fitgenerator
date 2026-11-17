@@ -48,7 +48,9 @@ async function networkFirst(request) {
   const cache = await caches.open(SITE_CACHE);
 
   try {
-    const response = await fetch(request);
+    // `no-cache`: toujours demander au serveur si le fichier a changé (GitHub Pages
+    // le garde sinon 10 minutes dans le cache du navigateur, même après une mise à jour)
+    const response = await fetch(request, { cache: 'no-cache' });
     if (response.ok) cache.put(request, response.clone());
     return response;
   } catch (error) {
