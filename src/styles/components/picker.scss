@@ -138,6 +138,7 @@
 }
 
 // Mode suppression: chaque pièce montre une petite poubelle, la pièce à confirmer devient rouge
+.picker__grid.is-deleting .picker__item,
 .picker__grid.is-editing .picker__item {
     position: relative;
 
@@ -175,7 +176,12 @@
     text-align: center;
 }
 
-.js-picker-edit[aria-pressed='true'] {
+// Mode modifier: un crayon au lieu de la poubelle
+.picker__grid.is-editing .picker__item::after {
+    background-image: url('../assets/images/edit.svg');
+}
+
+.js-picker-mode[aria-pressed='true'] {
     background-color: var(--color-text);
     color: var(--color-bg);
 }

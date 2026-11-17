@@ -65,10 +65,23 @@ export async function cutOut(file, onProgress) {
     },
   });
 
-  return trim(await loadImage(blob));
+  return trim(await loadImage(blob)).canvas;
 }
 
-// Coupe le vide transparent autour du vêtement
+// Vêtement déjà enregistré: son image (master 2000 px, sinon 1000 px) redevient un détourage,
+// avec la place qu'il occupe dans le cadre. Aucun nouveau détourage: le fond est déjà transparent.
+export async function loadExisting(base) {
+  let response = await fetch(`${base}-master.webp`, { mode: 'cors' });
+  if (!response.ok) response = await fetch(`${base}.webp`, { mode: 'cors' });
+  if (!response.ok) throw new Error(`Image introuvable (${response.status})`);
+
+  const image = await loadImage(await response.blob());
+  const { canvas, left, top } = trim(image);
+  const frameWidth = image.naturalWidth;
+  return { cutout: canvas, placement: { x: left / frameWidth, y: top / frameWidth, width: canvas.width / frameWidth } };
+}
+
+// Coupe le vide transparent autour du vêtement. Retourne le canvas et sa position dans l'image.
 function trim(image) {
   const source = canvasOf(image.naturalWidth, image.naturalHeight);
   const context = source.getContext('2d', { willReadFrequently: true });
@@ -93,7 +106,7 @@ function trim(image) {
 
   const result = canvasOf(right - left + 1, bottom - top + 1);
   result.getContext('2d').drawImage(source, left, top, result.width, result.height, 0, 0, result.width, result.height);
-  return result;
+  return { canvas: result, left, top };
 }
 
 // Placement de départ: le vêtement remplit la zone de sa catégorie, comme les images existantes.

@@ -2,17 +2,18 @@
 // Ouverte par Clothes.js avec la catégorie du picker.
 
 import { sendLink, currentSession, isAdmin } from '../utils/Supabase.js';
-import { cutOut, defaultPlacement, exportFiles, FRAMES } from '../utils/ImagePipeline.js';
-import { enqueue } from '../utils/UploadQueue.js';
+import { cutOut, loadExisting, defaultPlacement, exportFiles, FRAMES } from '../utils/ImagePipeline.js';
+import { enqueue, replace } from '../utils/UploadQueue.js';
 
 // Zoom permis autour du placement de départ
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 2.5;
 
 export default class Uploader {
-  constructor(element, { onAdded }) {
+  constructor(element, { onAdded, onReplaced }) {
     this.element = element;
     this.onAdded = onAdded;
+    this.onReplaced = onReplaced;
     this.title = element.querySelector('.js-uploader-title');
     this.message = element.querySelector('.js-uploader-message');
     this.steps = element.querySelectorAll('[data-step]');
@@ -39,12 +40,14 @@ export default class Uploader {
     this.stage.addEventListener('pointercancel', this.onPointerUp.bind(this));
   }
 
-  // `sources` = dossiers possibles [{ name, label }], `reference` = image du bonhomme vide
-  async open({ label, title, sources, reference }) {
+  // `sources` = dossiers possibles [{ name, label }], `reference` = image du bonhomme vide,
+  // `item` = vêtement existant à modifier (sinon on en ajoute un nouveau)
+  async open({ label, title, sources, reference, item = null }) {
     this.sources = sources;
-    this.source = sources[0].name;
+    this.source = item ? item.category : sources[0].name;
+    this.item = item;
     this.reference.src = reference;
-    this.title.textContent = title || `Add ${label.toLowerCase()}`;
+    this.title.textContent = title || `${item ? 'Edit' : 'Add'} ${label.toLowerCase()}`;
     this.renderSources();
     this.element.showModal();
 
@@ -52,11 +55,24 @@ export default class Uploader {
     if (!session) return this.show('login');
     // Connecté, mais seul le compte autorisé peut ajouter (vérifié aussi par Supabase à l'envoi)
     try {
-      if (!(await isAdmin())) return this.show('login', 'This account is not allowed to add clothes.');
+      if (!(await isAdmin())) return this.show('login', 'This account is not allowed to change clothes.');
     } catch (error) {
       // Hors ligne: impossible de vérifier, l'ajout attendra dans la file d'envoi
     }
-    this.show('source');
+    if (!item) return this.show('source');
+
+    // Modifier: l'image actuelle revient sur le bonhomme, à sa place et à sa taille
+    this.show('working');
+    this.setProgress(1, '');
+    this.status.textContent = 'Loading the piece…';
+    try {
+      const { cutout, placement } = await loadExisting(item.base);
+      this.cutout = cutout;
+      this.startAdjust(placement);
+    } catch (error) {
+      console.error(error);
+      this.show('source', 'Could not load this piece. Take a new photo instead.');
+    }
   }
 
   close() {
@@ -143,13 +159,15 @@ export default class Uploader {
   /* Ajustement: le vêtement est posé sur le bonhomme, on le déplace et le zoome
      ========================================================================== */
 
-  startAdjust() {
+  // `placement`: position de départ (modification), sinon la place standard de la catégorie.
+  // Le curseur à 100 % = taille standard: pratique pour remettre une pièce à la taille des autres.
+  startAdjust(placement = null) {
     const frame = FRAMES[this.source];
     this.stage.style.aspectRatio = `1000 / ${frame.height}`;
     this.preview.src = this.cutout.toDataURL('image/png');
     this.base = defaultPlacement(this.cutout, this.source);
-    this.placement = { ...this.base };
-    this.zoomInput.value = 100;
+    this.placement = { ...(placement || this.base) };
+    this.zoomInput.value = Math.round((this.placement.width / this.base.width) * 100);
     this.show('adjust');
     this.renderPlacement();
   }
@@ -228,8 +246,18 @@ export default class Uploader {
     try {
       const files = await exportFiles(this.cutout, this.source, this.placement);
       const row = { id: crypto.randomUUID(), category: this.source, position: Math.floor(Date.now() / 1000) - 1700000000, has_thumb: false };
-      const left = await enqueue(row, files);
 
+      // Modifier = nouvelle version (nouvel id: les appareils qui ont l'ancienne en cache la remplacent),
+      // puis l'ancienne est supprimée
+      if (this.item) {
+        const old = { id: this.item.id, category: this.item.category };
+        await replace(old, row, files);
+        this.onReplaced(old, row);
+        this.close();
+        return;
+      }
+
+      const left = await enqueue(row, files);
       this.onAdded(row);
       this.close();
       if (left) console.info(`${left} vêtement(s) en attente d'envoi: ils partiront au retour d'Internet.`);

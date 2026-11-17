@@ -64,6 +64,20 @@ export async function remove(row) {
   await forgetRow(row);
 }
 
+// Remplace un vêtement par sa nouvelle version: même rang dans la liste, puis l'ancienne est supprimée.
+// Demande Internet: l'ancienne version n'est supprimée qu'une fois la nouvelle bien envoyée.
+export async function replace(old, row, files) {
+  if (!navigator.onLine) throw new Error('Offline');
+
+  const { data, error } = await supabase().from('clothes').select('position').eq('id', old.id).maybeSingle();
+  if (error) throw error;
+  if (data) row.position = data.position;
+
+  const left = await enqueue(row, files);
+  if (left) throw new Error('Upload failed');
+  await remove(old);
+}
+
 let flushing = null;
 
 // Envoie tout ce qui attend. Retourne le nombre de vêtements encore en attente.

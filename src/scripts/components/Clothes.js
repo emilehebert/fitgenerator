@@ -76,7 +76,7 @@ export default class Clothes {
     this.pickerToggle = element.querySelector('.js-picker-toggle');
     this.pickerVariantLabel = element.querySelector('.js-picker-variant-label');
     this.pickerTabs = element.querySelector('.js-picker-tabs');
-    this.pickerEdit = element.querySelector('.js-picker-edit');
+    this.pickerModes = element.querySelectorAll('.js-picker-mode');
     this.shuffleButton = element.querySelector('.js-shuffle-all');
     this.favoriteButton = element.querySelector('.js-favorite');
     this.undoButton = element.querySelector('.js-undo');
@@ -85,7 +85,8 @@ export default class Clothes {
     // `pickerCategory` = catégorie ouverte dans le dialog, ou null pour les favoris
     this.pickerCategory = null;
     // Mode suppression du picker, et pièce qui attend la confirmation (deuxième toucher)
-    this.editing = false;
+    // Mode du picker: null (choisir), 'edit' (modifier) ou 'delete' (supprimer)
+    this.mode = null;
     this.confirmDelete = null;
     this.state = {};
     this.history = [];
@@ -210,11 +211,16 @@ export default class Clothes {
     if (target.closest('.js-open-favorites')) return this.openPicker(null);
     if (target.closest('.js-favorite-remove')) return this.removeFavorite(Number(target.closest('.js-favorite-remove').dataset.index));
     if (target.closest('.js-add')) return this.openUploader();
-    // Pas connecté: la poubelle ouvre la connexion (seul le propriétaire peut supprimer)
-    if (target.closest('.js-picker-edit')) return hasSession() ? this.toggleEditing() : this.openUploader({ title: 'Sign in to delete' });
-    if (this.editing && this.pickerCategory && target.closest('.js-picker-item')) {
+    // Pas connecté: le crayon et la poubelle ouvrent la connexion (seul le propriétaire modifie)
+    const modeButton = target.closest('.js-picker-mode');
+    if (modeButton) {
+      const { mode } = modeButton.dataset;
+      return hasSession() ? this.toggleMode(mode) : this.openUploader({ title: mode === 'edit' ? 'Sign in to edit' : 'Sign in to delete' });
+    }
+    if (this.mode && this.pickerCategory && target.closest('.js-picker-item')) {
       const index = parseInt(target.closest('.js-picker-item').dataset.index, 10);
-      if (index >= 0) return this.requestDelete(index);
+      if (index < 0) return;
+      return this.mode === 'edit' ? this.openEditor(index) : this.requestDelete(index);
     }
     if (target.closest('.js-picker-tab')) return this.switchTab(target.closest('.js-picker-tab').dataset.tab);
 
@@ -493,7 +499,7 @@ export default class Clothes {
   closePicker() {
     this.picker.close();
     this.pickerCategory = null;
-    this.editing = false;
+    this.mode = null;
     this.confirmDelete = null;
   }
 
@@ -506,11 +512,12 @@ export default class Clothes {
     const height = layer ? CATEGORIES[category].height / 2 : variant.thumbs ? 250 : 500;
     const wide = variant.thumbs || (layer && height < 500);
 
-    this.pickerTitle.textContent = this.editing ? 'Tap a piece to delete it' : `Your ${variant.label.toLowerCase()}`;
+    const titles = { edit: 'Tap a piece to edit it', delete: 'Tap a piece to delete it' };
+    this.pickerTitle.textContent = titles[this.mode] || `Your ${variant.label.toLowerCase()}`;
     this.renderTabs(category);
 
-    // Bouton poubelle: toujours visible, Supabase refuse la suppression à tout autre compte
-    this.pickerEdit.setAttribute('aria-pressed', this.editing);
+    // Crayon et poubelle: toujours visibles, Supabase refuse les changements de tout autre compte
+    for (const button of this.pickerModes) button.setAttribute('aria-pressed', button.dataset.mode === this.mode);
 
     // La case à cocher ne sert que pour les catégories à deux variantes
     this.pickerVariant.hidden = variants.length < 2;
@@ -519,13 +526,13 @@ export default class Clothes {
       this.pickerToggle.checked = this.state[category].variant === 1;
     }
 
-    this.pickerGrid.className = `picker__grid js-picker-grid${wide ? ' picker__grid--wide' : ''}${this.editing ? ' is-editing' : ''}`;
+    this.pickerGrid.className = `picker__grid js-picker-grid${wide ? ' picker__grid--wide' : ''}${this.mode ? ` is-${this.mode === 'edit' ? 'editing' : 'deleting'}` : ''}`;
     this.pickerGrid.innerHTML = '';
 
     // Première case: + = ajouter (la tête n'a pas de cadre de photo: pas de case).
     // Pour retirer une pièce, on retouche celle qui est portée (voir pick).
     const canAdd = sourcesOf(variant).every((source) => FRAMES[source.name]);
-    if (canAdd && !this.editing) {
+    if (canAdd && !this.mode) {
       this.pickerGrid.insertAdjacentHTML(
         'beforeend',
         `<button type="button" class="picker__item picker__item--add js-add" aria-label="Add ${variant.label.toLowerCase()}">` +
@@ -630,24 +637,50 @@ export default class Clothes {
   /* Ajout d'un vêtement (voir Uploader.js)
      ========================================================================== */
 
-  // `title`: titre de la fenêtre (par défaut « Add … »), ex. connexion depuis la poubelle
-  async openUploader({ title } = {}) {
+  // `title`: titre de la fenêtre (par défaut « Add … »), ex. connexion depuis la poubelle.
+  // `item`: vêtement existant à modifier (rouvre l'ajustement avec son image).
+  async openUploader({ title, item } = {}) {
     const category = this.pickerCategory;
     const variant = this.variantOf(category);
     // Image vide de la carte qui porte la pièce: sert de bonhomme pour l'ajustement
     const owner = this.variantOf(this.ownerOf(category));
+    const sources = sourcesOf(variant)
+      .filter((source) => !item || source.name === item.category)
+      .map((source) => ({ name: source.name, label: SOURCE_LABELS[source.name] || variant.label }));
 
     this.closePicker();
     if (!this.uploader) {
       const { default: Uploader } = await loadUploader();
-      this.uploader = new Uploader(this.element.querySelector('.js-uploader'), { onAdded: (row) => this.addItem(row) });
+      this.uploader = new Uploader(this.element.querySelector('.js-uploader'), {
+        onAdded: (row) => this.addItem(row),
+        onReplaced: (old, row) => this.replaceItem(old, row),
+      });
     }
-    this.uploader.open({
-      label: variant.label,
-      title,
-      sources: sourcesOf(variant).map((source) => ({ name: source.name, label: SOURCE_LABELS[source.name] || variant.label })),
-      reference: `${IMAGE_PATH}/${owner.name}/${owner.empty}.webp`,
-    });
+    this.uploader.open({ label: variant.label, title, sources, item, reference: `${IMAGE_PATH}/${owner.name}/${owner.empty}.webp` });
+  }
+
+  /* Modification d'un vêtement: crayon du picker, puis toucher la pièce
+     ========================================================================== */
+
+  openEditor(index) {
+    const item = this.itemsOf(this.pickerCategory)[index];
+    if (item) this.openUploader({ item });
+  }
+
+  // Vêtement modifié: la nouvelle version prend sa place (même rang, mêmes tenues sauvegardées)
+  replaceItem(old, row) {
+    const list = this.catalog[old.category] || [];
+    const index = list.findIndex((entry) => entry.id === old.id);
+    if (index === -1) return this.addItem(row);
+    list[index] = cloudItem(row);
+
+    for (const outfit of this.favorites) {
+      for (const category in outfit) if (outfit[category] && outfit[category].id === old.id) outfit[category].id = row.id;
+    }
+    this.saveFavorites();
+
+    for (const category in this.state) this.render(category);
+    this.commit();
   }
 
   // Nouveau vêtement: ajouté à la liste et porté tout de suite
@@ -667,8 +700,8 @@ export default class Clothes {
   /* Suppression d'un vêtement: poubelle du picker, puis deux touchers sur la pièce
      ========================================================================== */
 
-  toggleEditing() {
-    this.editing = !this.editing;
+  toggleMode(mode) {
+    this.mode = this.mode === mode ? null : mode;
     this.confirmDelete = null;
     this.renderPicker();
   }
