@@ -81,8 +81,8 @@
                         <input type="checkbox" class="js-picker-toggle" />
                         <span class="js-picker-variant-label"></span>
                     </label>
-                    {# Mode suppression: visible seulement quand le propriétaire est connecté #}
-                    <button type="button" class="button js-picker-edit" aria-pressed="false" aria-label="Delete clothes" hidden>
+                    {# Mode suppression: sans session, ouvre la connexion #}
+                    <button type="button" class="button js-picker-edit" aria-pressed="false" aria-label="Delete clothes">
                         <svg class="icon" aria-hidden="true"><use href="#icon-delete"></use></svg>
                     </button>
                     {{ ui.button('close', 'js-picker-close', 'Close') }}
@@ -103,7 +103,7 @@
 
                     <section data-step="login" hidden>
                         <form class="uploader__form js-uploader-login">
-                            <p class="uploader__text">Only the owner can add clothes. Enter your email to get a sign-in link.</p>
+                            <p class="uploader__text">Only the owner can add or delete clothes. Enter your email to get a sign-in link.</p>
                             <input class="uploader__input js-uploader-email" type="email" autocomplete="email" placeholder="Email" required />
                             <button type="submit" class="uploader__action">Send link</button>
                         </form>

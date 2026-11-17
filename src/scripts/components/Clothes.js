@@ -210,7 +210,8 @@ export default class Clothes {
     if (target.closest('.js-open-favorites')) return this.openPicker(null);
     if (target.closest('.js-favorite-remove')) return this.removeFavorite(Number(target.closest('.js-favorite-remove').dataset.index));
     if (target.closest('.js-add')) return this.openUploader();
-    if (target.closest('.js-picker-edit')) return this.toggleEditing();
+    // Pas connecté: la poubelle ouvre la connexion (seul le propriétaire peut supprimer)
+    if (target.closest('.js-picker-edit')) return hasSession() ? this.toggleEditing() : this.openUploader();
     if (this.editing && this.pickerCategory && target.closest('.js-picker-item')) {
       const index = parseInt(target.closest('.js-picker-item').dataset.index, 10);
       if (index >= 0) return this.requestDelete(index);
@@ -508,8 +509,7 @@ export default class Clothes {
     this.pickerTitle.textContent = this.editing ? 'Tap a piece to delete it' : `Your ${variant.label.toLowerCase()}`;
     this.renderTabs(category);
 
-    // Bouton poubelle: seulement pour le propriétaire connecté (Supabase vérifie aussi à la suppression)
-    this.pickerEdit.hidden = !hasSession();
+    // Bouton poubelle: toujours visible, Supabase refuse la suppression à tout autre compte
     this.pickerEdit.setAttribute('aria-pressed', this.editing);
 
     // La case à cocher ne sert que pour les catégories à deux variantes
