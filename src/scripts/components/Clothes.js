@@ -522,30 +522,15 @@ export default class Clothes {
     this.pickerGrid.className = `picker__grid js-picker-grid${wide ? ' picker__grid--wide' : ''}${this.editing ? ' is-editing' : ''}`;
     this.pickerGrid.innerHTML = '';
 
-    // Première case, coupée en deux pour prendre peu de place:
-    // X = aucun (le layer disparaît, la pièce de base montre son image vide) et + = ajouter.
-    // La tête n'a ni image vide ni cadre de photo: elle n'a pas cette case.
-    const canRemove = layer || Boolean(variant.empty);
+    // Première case: + = ajouter (la tête n'a pas de cadre de photo: pas de case).
+    // Pour retirer une pièce, on retouche celle qui est portée (voir pick).
     const canAdd = sourcesOf(variant).every((source) => FRAMES[source.name]);
-    if ((canRemove || canAdd) && !this.editing) {
-      const actions = document.createElement('div');
-      actions.className = 'picker__actions';
-
-      if (canRemove) {
-        const none = this.createPickerItem(-1, this.state[category].index === null);
-        none.classList.add('picker__item--none');
-        none.setAttribute('aria-label', `No ${variant.label.toLowerCase()}`);
-        none.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-close"></use></svg>';
-        actions.appendChild(none);
-      }
-      if (canAdd) {
-        actions.insertAdjacentHTML(
-          'beforeend',
-          `<button type="button" class="picker__item picker__item--add js-add" aria-label="Add ${variant.label.toLowerCase()}">` +
-            '<svg class="icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button>',
-        );
-      }
-      this.pickerGrid.appendChild(actions);
+    if (canAdd && !this.editing) {
+      this.pickerGrid.insertAdjacentHTML(
+        'beforeend',
+        `<button type="button" class="picker__item picker__item--add js-add" aria-label="Add ${variant.label.toLowerCase()}">` +
+          '<svg class="icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button>',
+      );
     }
 
     const items = this.itemsOf(category);
@@ -761,7 +746,11 @@ export default class Clothes {
 
   pick(index) {
     if (this.pickerCategory) {
-      this.state[this.pickerCategory].index = index < 0 ? null : index;
+      const state = this.state[this.pickerCategory];
+      // Retoucher la pièce portée la retire (layer caché, ou image vide de la carte)
+      const variant = this.variantOf(this.pickerCategory);
+      const canRemove = isLayer(this.pickerCategory) || Boolean(variant.empty);
+      state.index = index < 0 || (canRemove && index === state.index) ? null : index;
       this.render(this.pickerCategory);
     } else {
       this.restore(this.favorites[index]);

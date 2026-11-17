@@ -180,23 +180,15 @@
     color: var(--color-bg);
 }
 
-// Première case de la grille, coupée en deux: X (aucun) en haut, + (ajouter) en bas
-.picker__actions {
+// Première case de la grille: + (ajouter)
+.picker__item--add {
     display: flex;
-    flex-direction: column;
-    gap: var(--spacing-xs);
-
-    .picker__item {
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 44px;
-    }
+    align-items: center;
+    justify-content: center;
 
     .icon {
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
         opacity: 0.55;
     }
 }

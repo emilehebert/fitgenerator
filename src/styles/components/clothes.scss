@@ -43,8 +43,8 @@
         position: absolute;
         display: flex;
         flex-direction: row;
-        justify-content: flex-start;
-        width: 150%;
+        // Menu collé à gauche, en dehors de la carte (la droite reste libre pour les layers)
+        left: -25%;
         pointer-events: none;
     }
 
@@ -121,6 +121,6 @@
 
     // Garde les boutons alignés avec ceux du dessus malgré la largeur de 90%
     .card__content {
-        width: calc(150% / 0.9);
+        left: calc(-30% / 0.9);
     }
 }
