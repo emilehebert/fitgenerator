@@ -40,11 +40,11 @@ export default class Uploader {
   }
 
   // `sources` = dossiers possibles [{ name, label }], `reference` = image du bonhomme vide
-  async open({ label, sources, reference }) {
+  async open({ label, title, sources, reference }) {
     this.sources = sources;
     this.source = sources[0].name;
     this.reference.src = reference;
-    this.title.textContent = `Add ${label.toLowerCase()}`;
+    this.title.textContent = title || `Add ${label.toLowerCase()}`;
     this.renderSources();
     this.element.showModal();
 

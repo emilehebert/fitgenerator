@@ -211,7 +211,7 @@ export default class Clothes {
     if (target.closest('.js-favorite-remove')) return this.removeFavorite(Number(target.closest('.js-favorite-remove').dataset.index));
     if (target.closest('.js-add')) return this.openUploader();
     // Pas connecté: la poubelle ouvre la connexion (seul le propriétaire peut supprimer)
-    if (target.closest('.js-picker-edit')) return hasSession() ? this.toggleEditing() : this.openUploader();
+    if (target.closest('.js-picker-edit')) return hasSession() ? this.toggleEditing() : this.openUploader({ title: 'Sign in to delete' });
     if (this.editing && this.pickerCategory && target.closest('.js-picker-item')) {
       const index = parseInt(target.closest('.js-picker-item').dataset.index, 10);
       if (index >= 0) return this.requestDelete(index);
@@ -645,7 +645,8 @@ export default class Clothes {
   /* Ajout d'un vêtement (voir Uploader.js)
      ========================================================================== */
 
-  async openUploader() {
+  // `title`: titre de la fenêtre (par défaut « Add … »), ex. connexion depuis la poubelle
+  async openUploader({ title } = {}) {
     const category = this.pickerCategory;
     const variant = this.variantOf(category);
     // Image vide de la carte qui porte la pièce: sert de bonhomme pour l'ajustement
@@ -658,6 +659,7 @@ export default class Clothes {
     }
     this.uploader.open({
       label: variant.label,
+      title,
       sources: sourcesOf(variant).map((source) => ({ name: source.name, label: SOURCE_LABELS[source.name] || variant.label })),
       reference: `${IMAGE_PATH}/${owner.name}/${owner.empty}.webp`,
     });
